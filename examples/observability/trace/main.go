@@ -13,7 +13,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/qortoo/qortoo-rs/go/qortoo"
+	"github.com/qortoo/qortoo-go"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"

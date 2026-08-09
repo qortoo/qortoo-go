@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/grafana/pyroscope-go"
-	"github.com/qortoo/qortoo-rs/go/qortoo"
+	"github.com/qortoo/qortoo-go"
 )
 
 const (

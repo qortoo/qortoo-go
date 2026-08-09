@@ -12,7 +12,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/qortoo/qortoo-rs/go/qortoo"
+	"github.com/qortoo/qortoo-go"
 )
 
 func main() {

@@ -1,8 +1,9 @@
 # Go Observability Examples
 
 These examples are the Go-binding counterparts of the Rust programs in
-[`../../../../examples/observability`](../../../../examples/observability).
-They export Qortoo telemetry to the local Grafana observability stack.
+[`examples/observability`](https://github.com/qortoo/qortoo-rs/tree/main/examples/observability)
+in the [`qortoo-rs`](https://github.com/qortoo/qortoo-rs) repository. They export
+Qortoo telemetry to the local Grafana observability stack.
 
 | Example | Backend | Run command |
 |---------|---------|-------------|
@@ -11,17 +12,20 @@ They export Qortoo telemetry to the local Grafana observability stack.
 | Metrics | Prometheus | `go run ./examples/observability/metrics` |
 | Profile | Pyroscope | `go run ./examples/observability/profile` |
 
-Run all commands in this document from `go/qortoo`.
+Run all commands in this document from the repository root.
 
 ## Prerequisites
 
-Build the native library used by cgo and start the local observability stack:
+The native library used by cgo and the local observability stack (Grafana, Tempo,
+Loki, Prometheus, Pyroscope) both come from a `qortoo-rs` checkout:
 
 ```shell
-cd ../..
-cargo build -p qortoo-ffi
+cd /path/to/qortoo-rs
+make native-sdk-stage
 make obs-up
-cd go/qortoo
+cd -
+export CGO_CFLAGS="-I/path/to/qortoo-rs/target/native-sdk/debug/include"
+export CGO_LDFLAGS="-L/path/to/qortoo-rs/target/native-sdk/debug/lib"
 ```
 
 Open [Grafana](http://localhost:3000) and sign in with `admin` / `qortooAdmin`.
@@ -109,7 +113,7 @@ QORTOO_PROFILE_SECONDS=60 \
 
 ## Stop the Stack
 
-From the repository root:
+From the `qortoo-rs` checkout used in [Prerequisites](#prerequisites):
 
 ```shell
 make obs-down

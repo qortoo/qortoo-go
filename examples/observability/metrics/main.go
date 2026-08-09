@@ -14,7 +14,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/qortoo/qortoo-rs/go/qortoo"
+	"github.com/qortoo/qortoo-go"
 )
 
 const defaultListenAddress = "0.0.0.0:9000"
