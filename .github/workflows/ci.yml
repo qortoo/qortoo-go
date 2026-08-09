@@ -1,0 +1,125 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+env:
+  # The qortoo-rs commit that provides the qortoo-ffi native SDK this package is built
+  # and tested against. Pinned deliberately so a routine PR here never breaks because of
+  # an unrelated change on qortoo-rs/main — see canary.yml for that signal instead.
+  # Bump this in its own PR, after confirming the new commit's native-sdk-stage output
+  # is still ABI-compatible (see version.go's expectedABIMajor).
+  QORTOO_RS_REF: f21334ce1b986b8330751cbf606180451e6b1bfa
+
+jobs:
+  test:
+    name: test (${{ matrix.os }}, go ${{ matrix.go-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        # "1.25" is the minimum supported version (the `go` directive in go.mod);
+        # "stable" is the latest supported version.
+        go-version: ["1.25", "stable"]
+    steps:
+      - name: Checkout qortoo-go
+        uses: actions/checkout@v4
+        with:
+          path: qortoo-go
+
+      - name: Checkout qortoo-rs (pinned)
+        uses: actions/checkout@v4
+        with:
+          repository: qortoo/qortoo-rs
+          ref: ${{ env.QORTOO_RS_REF }}
+          path: qortoo-rs
+
+      # Kept in sync with qortoo-rs's own CI pin (.github/workflows/build-test-coverage.yml)
+      # since we build the qortoo-ffi crate checked out from that repository.
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@1.97.1
+
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+          cache-dependency-path: qortoo-go/go.sum
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            qortoo-rs/target
+          key: ${{ runner.os }}-cargo-ffi-${{ env.QORTOO_RS_REF }}-${{ hashFiles('qortoo-rs/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-ffi-${{ env.QORTOO_RS_REF }}-
+
+      - name: gofmt check
+        working-directory: qortoo-go
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "error: the following files are not gofmt-formatted:" >&2
+            echo "$unformatted" >&2
+            exit 1
+          fi
+
+      - name: Stage native SDK
+        run: |
+          make -C qortoo-rs native-sdk-stage
+          echo "CGO_CFLAGS=-I${{ github.workspace }}/qortoo-rs/target/native-sdk/debug/include" >> "$GITHUB_ENV"
+          echo "CGO_LDFLAGS=-L${{ github.workspace }}/qortoo-rs/target/native-sdk/debug/lib" >> "$GITHUB_ENV"
+
+      # Cross-checks the staged manifest against the ABI major this package is built
+      # against (version.go), so a mismatch fails clearly here instead of only at
+      # runtime via that file's init() panic.
+      - name: Verify Go/FFI ABI compatibility
+        run: |
+          manifest=qortoo-rs/target/native-sdk/debug/manifest.json
+          staged_major=$(grep -o '"abi_version_major": *[0-9]*' "$manifest" | grep -o '[0-9]*$')
+          expected_major=$(grep -o 'expectedABIMajor = [0-9]*' qortoo-go/version.go | grep -o '[0-9]*$')
+          echo "staged qortoo-ffi ABI major: $staged_major, qortoo-go expects: $expected_major"
+          if [ "$staged_major" != "$expected_major" ]; then
+            echo "error: ABI major mismatch — update expectedABIMajor in qortoo-go/version.go or QORTOO_RS_REF in ci.yml" >&2
+            exit 1
+          fi
+
+      - name: Record native SDK artifact checksums
+        run: |
+          {
+            echo "### Native SDK checksums ($QORTOO_RS_REF)"
+            echo '```'
+            shasum -a 256 \
+              qortoo-rs/target/native-sdk/debug/lib/libqortoo_ffi.a \
+              qortoo-rs/target/native-sdk/debug/include/qortoo.h
+            cat qortoo-rs/target/native-sdk/debug/manifest.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: go vet
+        working-directory: qortoo-go
+        run: go vet ./...
+
+      - name: go test -race
+        working-directory: qortoo-go
+        run: go test -race ./...
+
+      # Installing a global tracing subscriber/metrics recorder is only safe once per
+      # process, so these tests are re-run shuffled and repeated to catch ordering and
+      # cross-test global-state leaks that a single fixed-order pass would hide.
+      - name: go test -race (observability, shuffled/repeated)
+        working-directory: qortoo-go
+        run: |
+          go test -race -shuffle=on -count=2 \
+            -run '^(TestTraceContext|TestContextAwareOperationsWithoutObservability|TestInitObservability|TestObservability|TestShutdownObservability|TestShutdownTimeout)' \
+            ./...
+
+      - name: Compile examples
+        working-directory: qortoo-go
+        run: go build ./examples/...
