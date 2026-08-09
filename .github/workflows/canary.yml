@@ -1,0 +1,75 @@
+name: Canary (qortoo-rs main)
+
+# Tracks qortoo-rs/main instead of ci.yml's pinned commit, to surface upstream FFI
+# breakage early without making routine qortoo-go PRs depend on qortoo-rs's own CI.
+# This workflow is informational: a red run means "qortoo-rs/main has drifted", not
+# "this qortoo-go PR is broken" — bump QORTOO_RS_REF in ci.yml once main is fixed and
+# this run is green again.
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  test:
+    name: canary (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - name: Checkout qortoo-go
+        uses: actions/checkout@v4
+        with:
+          path: qortoo-go
+
+      - name: Checkout qortoo-rs (main)
+        uses: actions/checkout@v4
+        with:
+          repository: qortoo/qortoo-rs
+          ref: main
+          path: qortoo-rs
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache-dependency-path: qortoo-go/go.sum
+
+      - name: Record tested qortoo-rs commit
+        run: |
+          sha=$(git -C qortoo-rs rev-parse HEAD)
+          echo "Testing against qortoo-rs@main ($sha)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Stage native SDK
+        run: |
+          make -C qortoo-rs native-sdk-stage
+          echo "CGO_CFLAGS=-I${{ github.workspace }}/qortoo-rs/target/native-sdk/debug/include" >> "$GITHUB_ENV"
+          echo "CGO_LDFLAGS=-L${{ github.workspace }}/qortoo-rs/target/native-sdk/debug/lib" >> "$GITHUB_ENV"
+
+      - name: Verify Go/FFI ABI compatibility
+        run: |
+          manifest=qortoo-rs/target/native-sdk/debug/manifest.json
+          staged_major=$(grep -o '"abi_version_major": *[0-9]*' "$manifest" | grep -o '[0-9]*$')
+          expected_major=$(grep -o 'expectedABIMajor = [0-9]*' qortoo-go/version.go | grep -o '[0-9]*$')
+          echo "staged qortoo-ffi ABI major: $staged_major, qortoo-go expects: $expected_major"
+          if [ "$staged_major" != "$expected_major" ]; then
+            echo "error: qortoo-rs/main's ABI major no longer matches qortoo-go's expectedABIMajor" >&2
+            exit 1
+          fi
+
+      - name: go vet
+        working-directory: qortoo-go
+        run: go vet ./...
+
+      - name: go test -race
+        working-directory: qortoo-go
+        run: go test -race ./...
+
+      - name: Compile examples
+        working-directory: qortoo-go
+        run: go build ./examples/...
