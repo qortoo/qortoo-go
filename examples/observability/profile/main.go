@@ -1,6 +1,6 @@
 // Command profile demonstrates CPU profile export to Pyroscope.
 //
-// Run from go/qortoo:
+// Run from the qortoo-go repository root:
 //
 //	go run ./examples/observability/profile
 package main
