@@ -24,9 +24,11 @@ Shared across all qortoo-* repos (canonical text in [qortoo-harness `AGENTS.md`]
   version check), and `cgo.go` (cgo preamble and linker flags).
 - `examples/observability/` contains runnable trace, log, metrics, and profiling
   programs against a local Grafana stack (see its own README).
+- `docs/` owns installation, Go API lifecycle/concurrency, Go observability, and
+  binding-performance guidance.
 - `benchmark_test.go` mirrors the scenario names, workloads, and iteration budgets of
-  `benches/qortoo_bench.rs` in `qortoo-rs`, so the two can be compared operation for
-  operation; keep both sides in sync when changing one.
+  `benches/qortoo_bench.rs` in `qortoo-rs`. `benchmarks/contract.tsv` and
+  `scripts/check-benchmark-contract.sh` keep both sides comparable.
 
 ## Go Toolchain
 
@@ -37,10 +39,10 @@ Shared across all qortoo-* repos (canonical text in [qortoo-harness `AGENTS.md`]
 
 This package links `libqortoo_ffi.a`, `qortoo-ffi`'s C ABI native library, through
 `CGO_CFLAGS`/`CGO_LDFLAGS` — it carries no default include or library search path (see
-`cgo.go`). There is no published native SDK release yet, so `make test`/`make bench`
-stage one from a sibling `qortoo-rs` checkout automatically (`QORTOO_RS_DIR` overrides
-its location) unless `CGO_CFLAGS`/`CGO_LDFLAGS` are already set, in which case those
-values are used as given. See the [README](README.md#building-and-testing) for details.
+`cgo.go`). There is no published native SDK release yet, so `make test` stages a debug
+SDK and `make bench` stages a release SDK from a `qortoo-rs` checkout
+(`QORTOO_RS_DIR` overrides its location). See the
+[Getting Started guide](docs/getting-started.md) for details.
 
 Importing this package checks the linked library's ABI major version
 (`qortoo_abi_version_major`) against the version this package is built against
@@ -57,8 +59,18 @@ make test
 go vet ./...
 go test -race ./...
 
-# Benchmarks (pairs with `make bench-go` in a qortoo-rs checkout; see its docs/performance.md)
-go test -run '^$' -bench . -benchmem ./...
+# Fixed-budget Go benchmarks linked to a release native SDK
+QORTOO_RS_DIR=/path/to/qortoo-rs make bench
+
+# Cross-language comparison; both checkout paths are explicit
+./scripts/compare-benchmarks.sh --qortoo-go /path/to/qortoo-go \
+  --qortoo-rs /path/to/qortoo-rs --output /tmp/qortoo-benchmark-run
+
+# Save, inspect, compare, and upload cross-language results
+QORTOO_RS_DIR=/path/to/qortoo-rs make bench-save
+make bench-overhead
+make bench-compare BASE=/path/to/older-result
+BENCHER_API_KEY=... make bench-upload
 ```
 
 ## Coding Style & Naming Conventions
@@ -88,8 +100,9 @@ Shared across all qortoo-* repos (canonical text in [qortoo-harness `AGENTS.md`]
 - Add compatibility or migration guidance only for behavior that has appeared in a released version.
 - Docs describe the system as it is now and the rule that holds it in place — write principles, not history.
 
-For the C ABI, error mapping, callback/userdata ownership, and Rust-side observability
-pipeline, see [`docs/go-binding.md`](https://github.com/qortoo/qortoo-rs/blob/main/docs/go-binding.md)
+Start at [`docs/README.md`](docs/README.md) for Go-owned guides. For the C ABI, error
+mapping, callback/userdata ownership, and native SDK release process, see
+[`docs/go-binding.md`](https://github.com/qortoo/qortoo-rs/blob/main/docs/go-binding.md)
 in `qortoo-rs` — this repository does not duplicate that documentation.
 
 ## Commit & Pull Request Guidelines

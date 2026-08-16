@@ -19,7 +19,7 @@ change without notice.
   There is no published native SDK release yet, so building one locally is currently
   the only option.
 
-## Building and testing
+## Building and Testing
 
 With a `qortoo-rs` checkout next to this one (`../qortoo-rs`):
 
@@ -47,6 +47,9 @@ make test
 Importing this package checks the linked native library's ABI major version against
 the version this package was built against (see `version.go`) and panics on a
 mismatch, rather than risking undefined behavior across the FFI boundary.
+
+See [Getting Started](docs/getting-started.md) for the complete native SDK layout,
+pkg-config setup, and supported build targets.
 
 ## Usage
 
@@ -84,10 +87,21 @@ func main() {
 Without a connectivity option, `NewClient` uses the SDK-default no-op backend, so this
 example never leaves the process. See
 [`qortoo.NewLocalConnectivity`](https://github.com/qortoo/qortoo-go/blob/main/qortoo.go)
-for the in-memory backend used in tests, and
-[`docs/go-binding.md`](https://github.com/qortoo/qortoo-rs/blob/main/docs/go-binding.md)
-in `qortoo-rs` for the full binding architecture, error mapping, and observability
-setup.
+for the in-memory backend used in tests.
+
+## Documentation
+
+- [Getting Started](docs/getting-started.md) — installation, native SDK setup, and
+  quick start
+- [Lifecycle and Concurrency](docs/lifecycle-and-concurrency.md) — `Close`, cleanup,
+  callback threading, and transaction lifetime
+- [Observability](docs/observability.md) — logging, tracing, metrics, shutdown, and
+  trace-context propagation
+- [Performance](docs/performance.md) — Go benchmarks and Rust/Go comparison tooling
+
+The C ABI architecture, error mapping, callback/userdata ownership, header generation,
+and native SDK release process remain in
+[`qortoo-rs`](https://github.com/qortoo/qortoo-rs/blob/main/docs/go-binding.md).
 
 ## Examples
 

@@ -1,6 +1,6 @@
 // Command trace demonstrates a Go OpenTelemetry span continued by Qortoo's Rust core.
 //
-// Run from go/qortoo:
+// Run from the qortoo-go repository root:
 //
 //	go run ./examples/observability/trace
 package main

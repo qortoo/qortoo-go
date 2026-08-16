@@ -1,6 +1,6 @@
 // Command log demonstrates Qortoo's managed stdout logging from Go.
 //
-// Run from go/qortoo:
+// Run from the qortoo-go repository root:
 //
 //	go run ./examples/observability/log
 //	QORTOO_LOG_FORMAT=json RUST_LOG=qortoo=trace go run ./examples/observability/log

@@ -1,0 +1,6 @@
+# scenario	budget	rust_budget_constant	reset/workload
+IncreaseBy	200000	BUDGET_INCREASE_BY	IncreaseBy(1); reset counter every 50000 writes
+GetValue	2000000	BUDGET_GET_VALUE	Value(); one pre-populated counter per round
+Transaction	20000	BUDGET_TRANSACTION	Transaction with 10 IncreaseBy(1) calls; reset every 5000 transactions
+SyncLocal	20000	BUDGET_SYNC_LOCAL	IncreaseBy(1) plus manual Sync; reset every 5000 syncs
+BuildCounter	100	BUDGET_BUILD_COUNTER	Build and close 100 counters on a fresh client

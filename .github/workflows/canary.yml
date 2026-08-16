@@ -45,6 +45,12 @@ jobs:
           sha=$(git -C qortoo-rs rev-parse HEAD)
           echo "Testing against qortoo-rs@main ($sha)" >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Verify benchmark contract
+        run: |
+          qortoo-go/scripts/check-benchmark-contract.sh \
+            --qortoo-go "${{ github.workspace }}/qortoo-go" \
+            --qortoo-rs "${{ github.workspace }}/qortoo-rs"
+
       - name: Stage native SDK
         run: |
           make -C qortoo-rs native-sdk-stage

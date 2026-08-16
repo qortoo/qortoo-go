@@ -8,8 +8,8 @@
 //	export CGO_LDFLAGS="-L/path/to/native-sdk/lib"
 //	go test ./...
 //
-// Inside this repository, `make native-sdk-stage` builds qortoo-ffi and stages that
-// layout under target/native-sdk.
+// Inside this repository, `make test` stages a matching SDK from the qortoo-rs
+// checkout selected by QORTOO_RS_DIR.
 //
 // Every object returned by this package owns a native handle and must be
 // released with its Close method. As a backstop, an unreachable wrapper frees

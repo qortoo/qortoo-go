@@ -2,12 +2,12 @@ package qortoo
 
 // Go half of the Rust/Go benchmark pair.
 //
-// Every benchmark here mirrors a scenario in `benches/qortoo_bench.rs`, so the
-// difference between the two ns/op figures is the cost of the cgo binding for
-// that operation. Keep the two files in sync: changing the workload on one side
-// is meaningless unless it is mirrored on the other. See `docs/performance.md`
-// for the recorded baselines and the measurement protocol — in particular, these numbers are only valid when linked against a
-// release build of qortoo-ffi (use `make bench-go`).
+// Every benchmark here mirrors a scenario in qortoo-rs's
+// `benches/qortoo_bench.rs`, so the difference between the two ns/op figures is
+// the cost of the cgo binding for that operation. Keep both files and
+// `benchmarks/contract.tsv` in sync. See `docs/performance.md` for the
+// measurement protocol. These numbers are only valid when linked against a
+// release build of qortoo-ffi (`make bench` enforces that).
 //
 // Common conditions (mirrored in Rust): LocalConnectivity in manual mode so no
 // background sync interferes, single-threaded measurement, and no handler
@@ -204,7 +204,7 @@ func BenchmarkSyncLocal(b *testing.B) {
 
 // BenchmarkBuildCounter measures building and closing a counter — the one-time
 // cost per datatype, including this binding's runtime.AddCleanup registration.
-// Run it with `-benchtime 100x` (as `make bench-go` does): the per-build cost is
+// Run it with `-benchtime 100x` (as `make bench` does): the per-build cost is
 // not constant, so only a fixed budget is comparable with the Rust side.
 func BenchmarkBuildCounter(b *testing.B) {
 	b.Run(implLabel, func(b *testing.B) {

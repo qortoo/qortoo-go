@@ -1,6 +1,6 @@
 // Command metrics demonstrates Qortoo metrics exported to Prometheus.
 //
-// Run from go/qortoo:
+// Run from the qortoo-go repository root:
 //
 //	go run ./examples/observability/metrics
 package main
