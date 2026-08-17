@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"runtime"
 	"strconv"
 	"time"
 
@@ -142,6 +143,7 @@ func runCounterWorkload(duration time.Duration) error {
 		counterA.Value(),
 		counterB.Value(),
 	)
+	runtime.KeepAlive(cpuSink)
 	return nil
 }
 

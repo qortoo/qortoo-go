@@ -1,5 +1,10 @@
 # qortoo-go
 
+[![codecov](https://codecov.io/gh/qortoo/qortoo-go/branch/main/graph/badge.svg)](https://codecov.io/gh/qortoo/qortoo-go)
+[![CI](https://github.com/qortoo/qortoo-go/actions/workflows/ci.yml/badge.svg)](https://github.com/qortoo/qortoo-go/actions/workflows/ci.yml)
+[![GitHub commit activity](https://img.shields.io/github/commit-activity/w/qortoo/qortoo-go)](https://github.com/qortoo/qortoo-go/graphs/commit-activity)
+[![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/qortoo/qortoo-go/ci.yml)](https://github.com/qortoo/qortoo-go/actions/workflows/ci.yml)
+
 Go binding for the [Qortoo](https://github.com/qortoo/qortoo-rs) CRDT SDK. It wraps
 `qortoo-ffi`'s C ABI with cgo and exposes idiomatic Go types (`Client`, `Counter`,
 `Handler`) over the same conflict-free counter datatype, transactions, and
@@ -43,6 +48,21 @@ make test
 
 `make test` is equivalent to `go vet ./...` and `go test -race ./...` once
 `CGO_CFLAGS`/`CGO_LDFLAGS` are in place.
+
+The local quality gates use the same native SDK setup:
+
+```sh
+make lint
+make coverage
+```
+
+`make lint` checks `gofmt` and runs the explicit linter set in `.golangci.yml`.
+Install `golangci-lint` 2.12.2 or newer before running it; CI pins exactly 2.12.2.
+`make coverage` runs the root binding package with race detection and atomic statement
+coverage, enforces a 90% minimum, and writes `coverage.out` plus `coverage.html`.
+Override the paths or threshold with `COVERAGE_PROFILE`, `COVERAGE_HTML`, or
+`GO_COVERAGE_MIN`. Example `main` packages remain outside the coverage denominator and
+are compiled separately by CI.
 
 Importing this package checks the linked native library's ABI major version against
 the version this package was built against (see `version.go`) and panics on a

@@ -16,7 +16,7 @@ import (
 
 // handlerFromUserdata resolves the cgo.Handle passed through the uintptr_t
 // userdata. Returns nil when userdata does not carry a *Handler.
-func handlerFromUserdata(userdata C.uintptr_t) *Handler {
+func handlerFromUserdata(userdata uintptr) *Handler {
 	if userdata == 0 {
 		return nil
 	}
@@ -31,7 +31,7 @@ func handlerFromUserdata(userdata C.uintptr_t) *Handler {
 func goQortooOnStateChange(userdata C.uintptr_t, oldState, newState C.int32_t) {
 	// A Go panic must not unwind into the Rust worker thread.
 	defer func() { _ = recover() }()
-	if h := handlerFromUserdata(userdata); h != nil && h.OnStateChange != nil {
+	if h := handlerFromUserdata(uintptr(userdata)); h != nil && h.OnStateChange != nil {
 		h.OnStateChange(DatatypeState(oldState), DatatypeState(newState))
 	}
 }
@@ -39,7 +39,7 @@ func goQortooOnStateChange(userdata C.uintptr_t, oldState, newState C.int32_t) {
 //export goQortooOnError
 func goQortooOnError(userdata C.uintptr_t, code C.int32_t, msg *C.char) {
 	defer func() { _ = recover() }()
-	if h := handlerFromUserdata(userdata); h != nil && h.OnError != nil {
+	if h := handlerFromUserdata(uintptr(userdata)); h != nil && h.OnError != nil {
 		// msg is owned by Rust and only valid during this call: copy, don't free.
 		h.OnError(&Error{Code: int32(code), Msg: C.GoString(msg)})
 	}

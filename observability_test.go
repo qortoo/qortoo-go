@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"os/exec"
+	"strings"
 	"testing"
 	"time"
 
@@ -183,7 +184,14 @@ func TestShutdownTimeoutConversion(t *testing.T) {
 // subscriber, metrics recorder, and Qortoo lifecycle are process-global and terminal.
 func runObservabilitySubprocess(t *testing.T, scenario string) string {
 	t.Helper()
-	cmd := exec.Command(os.Args[0], "-test.run=^TestObservabilitySubprocess$")
+	args := []string{"-test.run=^TestObservabilitySubprocess$"}
+	for _, arg := range os.Args {
+		if strings.HasPrefix(arg, "-test.gocoverdir=") {
+			args = append(args, arg)
+			break
+		}
+	}
+	cmd := exec.Command(os.Args[0], args...)
 	cmd.Env = append(os.Environ(), observabilitySubprocessEnv+"="+scenario)
 	output, err := cmd.CombinedOutput()
 	require.NoErrorf(t, err, "observability subprocess failed:\n%s", output)
