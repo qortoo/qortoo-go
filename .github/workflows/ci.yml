@@ -5,14 +5,15 @@ on:
     branches: ["main"]
   pull_request:
     branches: ["main"]
+  workflow_dispatch: {}
 
 env:
   # The qortoo-rs commit that provides the qortoo-ffi native SDK this package is built
   # and tested against. Pinned deliberately so a routine PR here never breaks because of
   # an unrelated change on qortoo-rs/main — see canary.yml for that signal instead.
-  # Bump this in its own PR, after confirming the new commit's native-sdk-stage output
-  # is still ABI-compatible (see version.go's expectedABIMajor).
-  QORTOO_RS_REF: f21334ce1b986b8330751cbf606180451e6b1bfa
+  # Canary opens a dedicated PR to update this after the exact commit passes on every
+  # supported OS and remains ABI-compatible (see version.go's expectedABIMajor).
+  QORTOO_RS_REF: 2f71dd4f2ac7dbb600ab20aece9bad241cd85fe9
 
 jobs:
   quality:
