@@ -12,9 +12,9 @@ cgo adapter, and Go-side tests, examples, and documentation.
 ## Critical guidelines
 
 Shared across all qortoo-* repos (canonical text in [qortoo-harness `AGENTS.md`](https://github.com/qortoo/qortoo-harness)):
-- All code comments and documentation must be written in **English**.
+- All code comments and shared, tracked documentation must be written in **English**. Personal plan documents under `qortoo-harness/.local/plans/` are the exception: they must use the language of the current user session.
 - Favor SOLID principles, especially Single Responsibility (SRP) and Open/Closed (OCP), where practical. Check for these during review.
-- Individual plans, task lists, and working notes belong in the gitignored `.local/` at the repo root — never commit them or propose committing them. Claude Code's project-scoped agent memory (`.claude/agent-memory/`) is likewise personal and gitignored, not shared team knowledge.
+- All individual plan documents, regardless of the repository they concern, belong in the qortoo-harness repository's gitignored `.local/plans/` directory. Task lists and working notes likewise belong under qortoo-harness's `.local/` — never commit them or propose committing them. Claude Code's project-scoped agent memory (`.claude/agent-memory/`) is likewise personal and gitignored, not shared team knowledge.
 
 ## Project Structure & Module Organization
 
@@ -59,6 +59,12 @@ make test
 go vet ./...
 go test -race ./...
 
+# Check formatting and run the pinned-compatible golangci-lint configuration
+make lint
+
+# Run root-package race coverage, enforce 90%, and write coverage.out/coverage.html
+make coverage
+
 # Fixed-budget Go benchmarks linked to a release native SDK
 QORTOO_RS_DIR=/path/to/qortoo-rs make bench
 
@@ -89,6 +95,8 @@ BENCHER_API_KEY=... make bench-upload
 - `go test -race ./...` is the baseline; observability tests additionally run with
   `-shuffle=on -count=2` in CI because installing a global subscriber/recorder is only
   safe once per process (see `observability_test.go`).
+- `make coverage` enforces at least 90% statement coverage for the root binding package.
+  Example `main` packages stay outside that denominator and are compiled separately.
 - Every object wraps a native handle and must be released with `Close()`. Tests that
   create a `Client`/`Counter`/`LocalConnectivity` must `defer` its `Close()`.
 

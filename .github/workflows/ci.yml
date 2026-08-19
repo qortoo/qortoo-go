@@ -5,16 +5,102 @@ on:
     branches: ["main"]
   pull_request:
     branches: ["main"]
+  workflow_dispatch: {}
 
 env:
   # The qortoo-rs commit that provides the qortoo-ffi native SDK this package is built
   # and tested against. Pinned deliberately so a routine PR here never breaks because of
   # an unrelated change on qortoo-rs/main — see canary.yml for that signal instead.
-  # Bump this in its own PR, after confirming the new commit's native-sdk-stage output
-  # is still ABI-compatible (see version.go's expectedABIMajor).
-  QORTOO_RS_REF: f21334ce1b986b8330751cbf606180451e6b1bfa
+  # Canary opens a dedicated PR to update this after the exact commit passes on every
+  # supported OS and remains ABI-compatible (see version.go's expectedABIMajor).
+  QORTOO_RS_REF: 2f71dd4f2ac7dbb600ab20aece9bad241cd85fe9
 
 jobs:
+  quality:
+    name: quality (ubuntu-latest, go stable)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      HAS_CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN != '' }}
+    steps:
+      - name: Checkout qortoo-go
+        uses: actions/checkout@v4
+        with:
+          path: qortoo-go
+
+      - name: Checkout qortoo-rs (pinned)
+        uses: actions/checkout@v4
+        with:
+          repository: qortoo/qortoo-rs
+          ref: ${{ env.QORTOO_RS_REF }}
+          path: qortoo-rs
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@1.97.1
+
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache-dependency-path: qortoo-go/go.sum
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            qortoo-rs/target
+          key: ${{ runner.os }}-cargo-ffi-${{ env.QORTOO_RS_REF }}-${{ hashFiles('qortoo-rs/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-ffi-${{ env.QORTOO_RS_REF }}-
+
+      - name: Stage native SDK
+        run: |
+          make -C qortoo-rs native-sdk-stage
+          echo "CGO_CFLAGS=-I${{ github.workspace }}/qortoo-rs/target/native-sdk/debug/include" >> "$GITHUB_ENV"
+          echo "CGO_LDFLAGS=-L${{ github.workspace }}/qortoo-rs/target/native-sdk/debug/lib" >> "$GITHUB_ENV"
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.12.2
+          working-directory: qortoo-go
+
+      - name: Go coverage
+        run: make -C qortoo-go coverage GO_COVERAGE_MIN=90
+
+      - name: Record Go coverage
+        if: ${{ always() }}
+        run: |
+          if [ -f qortoo-go/coverage.out ]; then
+            total=$(go tool cover -func=qortoo-go/coverage.out | awk '/^total:/ { print $3 }')
+            {
+              echo "### Go binding coverage"
+              echo "Root package statement coverage: **$total** (required: **90%**)"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload Go coverage artifacts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: go-coverage
+          path: |
+            qortoo-go/coverage.out
+            qortoo-go/coverage.html
+          if-no-files-found: error
+
+      - name: Upload Go coverage to Codecov
+        if: ${{ success() && env.HAS_CODECOV_TOKEN == 'true' }}
+        uses: codecov/codecov-action@v7
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: qortoo-go/coverage.out
+          flags: go
+          fail_ci_if_error: false
+
   test:
     name: test (${{ matrix.os }}, go ${{ matrix.go-version }})
     runs-on: ${{ matrix.os }}

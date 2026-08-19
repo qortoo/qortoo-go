@@ -2,18 +2,43 @@ name: Canary (qortoo-rs main)
 
 # Tracks qortoo-rs/main instead of ci.yml's pinned commit, to surface upstream FFI
 # breakage early without making routine qortoo-go PRs depend on qortoo-rs's own CI.
-# This workflow is informational: a red run means "qortoo-rs/main has drifted", not
-# "this qortoo-go PR is broken" — bump QORTOO_RS_REF in ci.yml once main is fixed and
-# this run is green again.
+# Once the same qortoo-rs commit passes on every supported OS, this workflow opens or
+# updates a pull request that pins CI to the verified commit.
 on:
   schedule:
     - cron: "0 6 * * *"
   workflow_dispatch: {}
 
+concurrency:
+  group: qortoo-rs-ref-update
+  cancel-in-progress: false
+
 jobs:
+  resolve:
+    name: resolve qortoo-rs/main
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      qortoo_rs_ref: ${{ steps.ref.outputs.sha }}
+    steps:
+      - name: Resolve qortoo-rs/main
+        id: ref
+        run: |
+          sha=$(git ls-remote https://github.com/qortoo/qortoo-rs.git refs/heads/main | awk '{ print $1 }')
+          if ! printf '%s' "$sha" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "error: could not resolve qortoo-rs/main to a commit SHA" >&2
+            exit 1
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "Resolved qortoo-rs/main to \`$sha\`." >> "$GITHUB_STEP_SUMMARY"
+
   test:
     name: canary (${{ matrix.os }})
+    needs: resolve
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -24,11 +49,11 @@ jobs:
         with:
           path: qortoo-go
 
-      - name: Checkout qortoo-rs (main)
+      - name: Checkout qortoo-rs (resolved main)
         uses: actions/checkout@v4
         with:
           repository: qortoo/qortoo-rs
-          ref: main
+          ref: ${{ needs.resolve.outputs.qortoo_rs_ref }}
           path: qortoo-rs
 
       - name: Install Rust
@@ -43,7 +68,7 @@ jobs:
       - name: Record tested qortoo-rs commit
         run: |
           sha=$(git -C qortoo-rs rev-parse HEAD)
-          echo "Testing against qortoo-rs@main ($sha)" >> "$GITHUB_STEP_SUMMARY"
+          echo "Testing qortoo-rs/main at \`$sha\`." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Verify benchmark contract
         run: |
@@ -79,3 +104,114 @@ jobs:
       - name: Compile examples
         working-directory: qortoo-go
         run: go build ./examples/...
+
+  update-pin:
+    name: propose verified qortoo-rs pin
+    needs: [resolve, test]
+    if: github.repository == 'qortoo/qortoo-go' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: write
+      pull-requests: write
+    env:
+      UPDATE_BRANCH: automation/update-qortoo-rs-ref
+      QORTOO_RS_REF: ${{ needs.resolve.outputs.qortoo_rs_ref }}
+    steps:
+      - name: Checkout qortoo-go main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Prepare pin update
+        id: pin
+        run: |
+          if git ls-remote --exit-code --heads origin "$UPDATE_BRANCH" >/dev/null 2>&1; then
+            git fetch origin "refs/heads/$UPDATE_BRANCH:refs/remotes/origin/$UPDATE_BRANCH"
+          fi
+          git switch -C "$UPDATE_BRANCH" origin/main
+
+          ci_file=.github/workflows/ci.yml
+          matches=$(grep -c '^  QORTOO_RS_REF: ' "$ci_file")
+          if [ "$matches" -ne 1 ]; then
+            echo "error: expected exactly one QORTOO_RS_REF declaration in $ci_file" >&2
+            exit 1
+          fi
+
+          current_ref=$(sed -n 's/^  QORTOO_RS_REF: //p' "$ci_file")
+          if [ "$current_ref" = "$QORTOO_RS_REF" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "CI already pins qortoo-rs at \`$QORTOO_RS_REF\`." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          sed -i "s/^  QORTOO_RS_REF: .*/  QORTOO_RS_REF: $QORTOO_RS_REF/" "$ci_file"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          echo "previous_ref=$current_ref" >> "$GITHUB_OUTPUT"
+          echo "short_ref=${QORTOO_RS_REF:0:12}" >> "$GITHUB_OUTPUT"
+
+      - name: Push update branch
+        if: steps.pin.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/workflows/ci.yml
+          git commit -m "💿CI/CD(ffi): update verified qortoo-rs pin"
+          git push --force-with-lease origin "HEAD:$UPDATE_BRANCH"
+
+      - name: Open or update pull request
+        if: steps.pin.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PREVIOUS_REF: ${{ steps.pin.outputs.previous_ref }}
+          SHORT_REF: ${{ steps.pin.outputs.short_ref }}
+        run: |
+          pr_number=$(gh pr list \
+            --base main \
+            --head "$UPDATE_BRANCH" \
+            --state open \
+            --json number \
+            --jq '.[0].number')
+
+          if [ -n "$pr_number" ]; then
+            gh pr edit "$pr_number" \
+              --title "💿CI/CD(ffi): update qortoo-rs pin to $SHORT_REF" \
+              --body-file - <<EOF
+          ## Summary
+
+          - update \`QORTOO_RS_REF\` from \`$PREVIOUS_REF\` to \`$QORTOO_RS_REF\`
+          - pin the exact qortoo-rs/main commit verified by the Linux and macOS canary jobs
+
+          ## Testing
+
+          - Canary / canary (ubuntu-latest)
+          - Canary / canary (macos-latest)
+
+          Generated by \`canary.yml\`.
+          EOF
+          else
+            gh pr create \
+              --base main \
+              --head "$UPDATE_BRANCH" \
+              --title "💿CI/CD(ffi): update qortoo-rs pin to $SHORT_REF" \
+              --body-file - <<EOF
+          ## Summary
+
+          - update \`QORTOO_RS_REF\` from \`$PREVIOUS_REF\` to \`$QORTOO_RS_REF\`
+          - pin the exact qortoo-rs/main commit verified by the Linux and macOS canary jobs
+
+          ## Testing
+
+          - Canary / canary (ubuntu-latest)
+          - Canary / canary (macos-latest)
+
+          Generated by \`canary.yml\`.
+          EOF
+          fi
+
+      - name: Run CI for the update branch
+        if: steps.pin.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run ci.yml --ref "$UPDATE_BRANCH"

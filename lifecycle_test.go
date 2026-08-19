@@ -151,7 +151,7 @@ func TestCounterKeepsClientReachable(t *testing.T) {
 	require.NoError(t, err)
 
 	// Drop the only direct client reference; the counter must keep it alive.
-	client = nil //nolint:ineffassign,wastedassign,staticcheck // deliberate: releases the test's reference
+	client = nil //nolint:wastedassign // deliberate: releases the test's reference
 	gcSettle()
 	require.Zero(t, rec.count("client"), "client must not be cleaned up while its counter is reachable")
 
@@ -197,12 +197,20 @@ func TestUseAfterCloseIsDefined(t *testing.T) {
 
 	counter.Close()
 	require.Zero(t, counter.Value())
+	require.Empty(t, counter.Key())
+	require.EqualValues(t, -1, counter.Type())
 	require.EqualValues(t, -1, int32(counter.State()))
+	require.Zero(t, counter.ServerVersion())
+	require.Zero(t, counter.SyncedClientVersion())
 	_, err = counter.IncreaseBy(1)
 	require.Error(t, err)
 	require.Error(t, counter.Sync())
+	require.Error(t, counter.Unsubscribe())
 
 	client.Close()
+	require.Empty(t, client.Collection())
+	require.Empty(t, client.Alias())
+	require.Error(t, client.UnsubscribeDatatype("closed-counter"))
 	_, err = client.CreateCounter("after-close", nil)
 	require.Error(t, err)
 }
