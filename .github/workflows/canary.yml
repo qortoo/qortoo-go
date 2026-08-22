@@ -123,6 +123,12 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
+          # GITHUB_TOKEN can never push changes to files under .github/workflows/,
+          # regardless of the permissions granted above. WORKFLOW_PAT must be a PAT
+          # (or GitHub App installation token) with the "Workflows" write permission,
+          # stored as a repo secret. Falls back to GITHUB_TOKEN so this step still
+          # runs (and fails at push, with a clear error) if the secret isn't set yet.
+          token: ${{ secrets.WORKFLOW_PAT || github.token }}
 
       - name: Prepare pin update
         id: pin
