@@ -114,6 +114,7 @@ jobs:
       actions: write
       contents: write
       pull-requests: write
+      workflows: write
     env:
       UPDATE_BRANCH: automation/update-qortoo-rs-ref
       QORTOO_RS_REF: ${{ needs.resolve.outputs.qortoo_rs_ref }}
