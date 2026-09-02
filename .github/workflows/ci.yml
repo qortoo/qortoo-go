@@ -13,7 +13,7 @@ env:
   # an unrelated change on qortoo-rs/main — see canary.yml for that signal instead.
   # Canary opens a dedicated PR to update this after the exact commit passes on every
   # supported OS and remains ABI-compatible (see version.go's expectedABIMajor).
-  QORTOO_RS_REF: 68aa1410e6b050784d60c9d0f446cec1dca29545
+  QORTOO_RS_REF: 6dcc3b9867d9a4195bb5910df83ec2227580de94
 
 jobs:
   quality:
