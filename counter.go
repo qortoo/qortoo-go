@@ -14,30 +14,7 @@ import "C"
 import (
 	"context"
 	"runtime"
-	"runtime/cgo"
 )
-
-// Handler receives datatype notifications. Both fields are optional.
-// Callbacks run on Qortoo-owned worker threads (see package docs).
-type Handler struct {
-	// OnStateChange is called as (oldState, newState) after a lifecycle transition.
-	OnStateChange func(oldState, newState DatatypeState)
-	// OnError is called with errors surfaced from the sync path.
-	OnError func(err *Error)
-}
-
-// DatatypeOptions configures counter construction. The zero value (or nil
-// pointer) selects the SDK defaults.
-type DatatypeOptions struct {
-	// Readonly rejects all local writes regardless of state.
-	Readonly bool
-	// MaxPushBufferSize in bytes; 0 keeps the SDK default (clamped by the SDK).
-	MaxPushBufferSize uint64
-	// Handler registered at build time (needed to observe the first auto-sync
-	// with realtime connectivity). HandlerPriority orders multiple handlers.
-	Handler         *Handler
-	HandlerPriority uint
-}
 
 // Counter is a conflict-free counter datatype.
 type Counter struct {
@@ -51,37 +28,16 @@ type Counter struct {
 	cleanup  runtime.Cleanup
 }
 
-func (opts *DatatypeOptions) toC() *C.QortooDatatypeOptions {
-	if opts == nil {
-		return nil
-	}
-	c := &C.QortooDatatypeOptions{
-		readonly:             C.bool(opts.Readonly),
-		max_push_buffer_size: C.uint64_t(opts.MaxPushBufferSize),
-		handler_priority:     C.uintptr_t(opts.HandlerPriority),
-	}
-	if opts.Handler != nil {
-		h := cgo.NewHandle(opts.Handler)
-		c.on_state_change = C.qortooGoStateChangeCB()
-		c.on_error = C.qortooGoErrorCB()
-		// The handle is released by goQortooUserdataDrop when Rust drops the handler.
-		c.handler_userdata = C.uintptr_t(h)
-		c.handler_userdata_drop = C.qortooGoUserdataDropCB()
-	}
-	return c
-}
-
 func (c *Client) buildCounter(
 	key string,
 	opts *DatatypeOptions,
 	build func(*C.QortooClient, *C.char, *C.QortooDatatypeOptions, *C.QortooError) *C.QortooCounter,
 ) (*Counter, error) {
-	defer runtime.KeepAlive(c)
-	cKey := cString(key)
-	defer freeCString(cKey)
-	var cerr C.QortooError
-	ptr := build(c.ptr, cKey, opts.toC(), &cerr)
-	if err := takeError(&cerr); err != nil {
+	var ptr *C.QortooCounter
+	err := buildDatatype(c, key, opts, func(cl *C.QortooClient, k *C.char, o *C.QortooDatatypeOptions, e *C.QortooError) {
+		ptr = build(cl, k, o, e)
+	})
+	if err != nil {
 		return nil, err
 	}
 	ctr := &Counter{ptr: ptr, client: c}
@@ -204,15 +160,12 @@ func (c *Counter) SyncedClientVersion() uint64 {
 // (lower priority runs first).
 func (c *Counter) SetHandler(priority uint, h *Handler) {
 	defer runtime.KeepAlive(c)
-	// If registration fails (e.g., the counter is closed), Rust still fires
-	// userdata_drop exactly once, releasing this handle.
-	hh := cgo.NewHandle(h)
 	C.qortoo_counter_set_handler(
 		c.ptr,
 		C.uintptr_t(priority),
 		C.qortooGoStateChangeCB(),
 		C.qortooGoErrorCB(),
-		C.uintptr_t(hh),
+		newHandlerUserdata(h),
 		C.qortooGoUserdataDropCB(),
 	)
 }
@@ -224,28 +177,15 @@ func (c *Counter) UnsetHandler(priority uint) bool {
 	return bool(C.qortoo_counter_unset_handler(c.ptr, C.uintptr_t(priority)))
 }
 
-// txContext carries the transaction body and its error across the FFI boundary.
-type txContext struct {
-	fn  func(tx *Counter) error
-	err error
-}
-
 // Transaction executes fn atomically: if fn returns an error (or panics), every
 // operation performed through tx is rolled back. fn runs inline on the calling
 // goroutine; tx is only valid during the call. Use TransactionContext to keep
 // the commit inside the trace of a calling span.
 func (c *Counter) Transaction(tag string, fn func(tx *Counter) error) error {
 	defer runtime.KeepAlive(c)
-	cTag := cString(tag)
-	defer freeCString(cTag)
-
-	txc := &txContext{fn: fn}
-	h := cgo.NewHandle(txc)
-	defer h.Delete()
-
-	var cerr C.QortooError
-	C.qortoo_counter_transaction(c.ptr, cTag, C.qortooGoTxCB(), C.uintptr_t(h), &cerr)
-	return txc.result(&cerr)
+	return runTransaction(tag, fn, func(cTag *C.char, userdata C.uintptr_t, cerr *C.QortooError) {
+		C.qortoo_counter_transaction(c.ptr, cTag, C.qortooGoTxCB(), userdata, cerr)
+	})
 }
 
 // TransactionContext is Transaction continuing the trace of ctx: the commit and any
@@ -254,29 +194,12 @@ func (c *Counter) Transaction(tag string, fn func(tx *Counter) error) error {
 // inline on the calling goroutine.
 func (c *Counter) TransactionContext(ctx context.Context, tag string, fn func(tx *Counter) error) error {
 	defer runtime.KeepAlive(c)
-	cTag := cString(tag)
-	defer freeCString(cTag)
-
-	txc := &txContext{fn: fn}
-	h := cgo.NewHandle(txc)
-	defer h.Delete()
-
-	var cerr C.QortooError
-	withTraceContext(ctx, func(traceparent, tracestate *C.char) {
-		C.qortoo_counter_transaction_with_context(
-			c.ptr, cTag, traceparent, tracestate, C.qortooGoTxCB(), C.uintptr_t(h), &cerr)
+	return runTransaction(tag, fn, func(cTag *C.char, userdata C.uintptr_t, cerr *C.QortooError) {
+		withTraceContext(ctx, func(traceparent, tracestate *C.char) {
+			C.qortoo_counter_transaction_with_context(
+				c.ptr, cTag, traceparent, tracestate, C.qortooGoTxCB(), userdata, cerr)
+		})
 	})
-	return txc.result(&cerr)
-}
-
-// result prefers the error returned by the transaction body: the FFI only reports
-// that the commit was aborted, while txc.err says why.
-func (txc *txContext) result(cerr *C.QortooError) error {
-	err := takeError(cerr)
-	if err != nil && txc.err != nil {
-		return txc.err
-	}
-	return err
 }
 
 // Close releases this handle. The underlying datatype stays registered in its

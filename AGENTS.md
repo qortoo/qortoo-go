@@ -19,9 +19,12 @@ Shared across all qortoo-* repos (canonical text in [qortoo-harness `AGENTS.md`]
 ## Project Structure & Module Organization
 
 - Root `.go` files hold the package: `qortoo.go` (`Client`, `LocalConnectivity`),
-  `counter.go` (`Counter`, transactions, `Handler`), `callbacks.go` (cgo callback
-  trampolines), `errors.go`, `lifecycle.go`, `observability.go`, `version.go` (ABI
-  version check), and `cgo.go` (cgo preamble and linker flags).
+  `datatype.go` (`Handler`, `DatatypeOptions`, and the construction/transaction
+  bodies every datatype shares), `counter.go` (`Counter`), `callbacks.go` (cgo
+  callback trampolines), `errors.go`, `lifecycle.go`, `observability.go`,
+  `version.go` (ABI version check), and `cgo.go` (cgo preamble and linker flags).
+  A datatype file owns only its own native calls; anything datatype-agnostic
+  belongs in `datatype.go`.
 - `examples/observability/` contains runnable trace, log, metrics, and profiling
   programs against a local Grafana stack (see its own README).
 - `docs/` owns installation, Go API lifecycle/concurrency, Go observability, and
