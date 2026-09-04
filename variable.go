@@ -32,14 +32,8 @@ import (
 // agree on the schema. The stored bytes are kept verbatim: they are never reparsed,
 // reordered, or re-encoded by the SDK.
 type Variable struct {
+	datatype
 	ptr *C.QortooVariable
-	// client keeps the owning Client reachable so its GC cleanup cannot shut
-	// the native client down while this variable is still in use. Severed by
-	// Close; nil for transaction-scoped handles.
-	client *Client
-	// borrowed marks transaction-scoped handles owned by Rust (must not be freed).
-	borrowed bool
-	cleanup  runtime.Cleanup
 }
 
 func (c *Client) buildVariable(
@@ -54,7 +48,10 @@ func (c *Client) buildVariable(
 	if err != nil {
 		return nil, err
 	}
-	v := &Variable{ptr: ptr, client: c}
+	v := &Variable{
+		datatype: datatype{shared: C.qortoo_variable_as_datatype(ptr), client: c},
+		ptr:      ptr,
+	}
 	v.cleanup = runtime.AddCleanup(v, freeVariablePtr, ptr)
 	return v, nil
 }
@@ -118,7 +115,7 @@ func (v *Variable) Set(value any) (any, error) {
 // json.Number.
 //
 // The initial and an explicitly stored null both decode as JSON null, which leaves
-// a non-nullable destination at its zero value; decode into a pointer, an any, or a
+// a non-nullable destination unchanged; decode into a pointer, an any, or a
 // type with a custom unmarshaller to tell null apart from a stored zero.
 //
 // Get reads local state only: it produces no operation and changes neither the
@@ -155,95 +152,6 @@ func decodeJSONValue(raw []byte) (any, error) {
 	return out, nil
 }
 
-// Sync performs a blocking push/pull with the connectivity backend. Use
-// SyncContext to keep the sync inside the trace of a calling span.
-func (v *Variable) Sync() error {
-	defer runtime.KeepAlive(v)
-	var cerr C.QortooError
-	C.qortoo_variable_sync(v.ptr, &cerr)
-	return takeError(&cerr)
-}
-
-// SyncContext is Sync continuing the trace of ctx.
-//
-// The Rust spans of this sync — including the push/pull that runs on a worker thread
-// and the handler callbacks it dispatches — become children of the span in ctx.
-// Without a span in ctx it behaves exactly like Sync. Cancellation of ctx is not
-// honoured: the underlying sync is a blocking call.
-func (v *Variable) SyncContext(ctx context.Context) error {
-	defer runtime.KeepAlive(v)
-	var cerr C.QortooError
-	withTraceContext(ctx, func(traceparent, tracestate *C.char) {
-		C.qortoo_variable_sync_with_context(v.ptr, traceparent, tracestate, &cerr)
-	})
-	return takeError(&cerr)
-}
-
-// Unsubscribe marks this datatype as unsubscribing (see Client.UnsubscribeDatatype).
-func (v *Variable) Unsubscribe() error {
-	defer runtime.KeepAlive(v)
-	var cerr C.QortooError
-	C.qortoo_variable_unsubscribe(v.ptr, &cerr)
-	return takeError(&cerr)
-}
-
-// Key returns the datatype key.
-func (v *Variable) Key() string {
-	defer runtime.KeepAlive(v)
-	return goString(C.qortoo_variable_get_key(v.ptr))
-}
-
-// Type returns the datatype kind (always TypeVariable for a Variable).
-func (v *Variable) Type() DataType {
-	defer runtime.KeepAlive(v)
-	return DataType(C.qortoo_variable_get_type(v.ptr))
-}
-
-// State returns the current lifecycle state.
-func (v *Variable) State() DatatypeState {
-	defer runtime.KeepAlive(v)
-	return DatatypeState(C.qortoo_variable_get_state(v.ptr))
-}
-
-// ServerVersion returns the server-side version (0 before the first sync).
-func (v *Variable) ServerVersion() uint64 {
-	defer runtime.KeepAlive(v)
-	return uint64(C.qortoo_variable_get_server_version(v.ptr))
-}
-
-// ClientVersion returns the number of local operations.
-func (v *Variable) ClientVersion() uint64 {
-	defer runtime.KeepAlive(v)
-	return uint64(C.qortoo_variable_get_client_version(v.ptr))
-}
-
-// SyncedClientVersion returns the last client version acknowledged by the server.
-func (v *Variable) SyncedClientVersion() uint64 {
-	defer runtime.KeepAlive(v)
-	return uint64(C.qortoo_variable_get_synced_client_version(v.ptr))
-}
-
-// SetHandler registers (or replaces) a handler at the given priority
-// (lower priority runs first).
-func (v *Variable) SetHandler(priority uint, h *Handler) {
-	defer runtime.KeepAlive(v)
-	C.qortoo_variable_set_handler(
-		v.ptr,
-		C.uintptr_t(priority),
-		C.qortooGoStateChangeCB(),
-		C.qortooGoErrorCB(),
-		newHandlerUserdata(h),
-		C.qortooGoUserdataDropCB(),
-	)
-}
-
-// UnsetHandler removes the handler at the given priority. Returns true if one
-// was removed.
-func (v *Variable) UnsetHandler(priority uint) bool {
-	defer runtime.KeepAlive(v)
-	return bool(C.qortoo_variable_unset_handler(v.ptr, C.uintptr_t(priority)))
-}
-
 // Transaction executes fn atomically: if fn returns an error (or panics), every
 // operation performed through tx is rolled back — restoring both the value and the
 // timestamp the variable held before the transaction. fn runs inline on the calling
@@ -274,10 +182,8 @@ func (v *Variable) TransactionContext(ctx context.Context, tag string, fn func(t
 // client. No-op for transaction-scoped handles. Close must not be called
 // concurrently with other methods on the same object.
 func (v *Variable) Close() {
-	if v.ptr != nil && !v.borrowed {
-		v.cleanup.Stop()
+	if v.release() {
 		C.qortoo_variable_free(v.ptr)
 	}
 	v.ptr = nil
-	v.client = nil
 }

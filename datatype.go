@@ -11,6 +11,7 @@ extern QortooUserdataDropCallback qortooGoUserdataDropCB(void);
 import "C"
 
 import (
+	"context"
 	"fmt"
 	"runtime"
 	"runtime/cgo"
@@ -61,6 +62,129 @@ func (opts *DatatypeOptions) toC() *C.QortooDatatypeOptions {
 // or could not be registered at all — and that is what releases the handle.
 func newHandlerUserdata(h *Handler) C.uintptr_t {
 	return C.uintptr_t(cgo.NewHandle(h))
+}
+
+// datatype is the state and behavior every datatype shares. A datatype embeds it,
+// which promotes these methods onto the exported type — godoc renders them on the
+// datatype itself — so each datatype file adds only its own operations.
+//
+// shared is the datatype's own handle viewed as the shared one every
+// qortoo_datatype_* entry point takes. It borrows the concrete handle: the two point
+// into the same native allocation, which the datatype's own free function releases.
+type datatype struct {
+	shared *C.QortooDatatype
+	// client keeps the owning Client reachable so its GC cleanup cannot shut the
+	// native client down while this datatype is still in use. Severed by Close;
+	// nil for transaction-scoped handles.
+	client *Client
+	// borrowed marks transaction-scoped handles owned by Rust (must not be freed).
+	borrowed bool
+	cleanup  runtime.Cleanup
+}
+
+// release stops the GC cleanup and reports whether the caller still owns the native
+// handle and must release it. A transaction-scoped handle is owned by Rust, and an
+// already-closed one reports false — which is what makes Close idempotent. The
+// caller clears its own concrete handle afterwards, so a later call reaches the
+// FFI's null checks instead of freed memory.
+func (d *datatype) release() bool {
+	owned := d.shared != nil && !d.borrowed
+	if owned {
+		d.cleanup.Stop()
+	}
+	d.shared = nil
+	d.client = nil
+	return owned
+}
+
+// Sync performs a blocking push/pull with the connectivity backend. Use
+// SyncContext to keep the sync inside the trace of a calling span.
+func (d *datatype) Sync() error {
+	defer runtime.KeepAlive(d)
+	var cerr C.QortooError
+	C.qortoo_datatype_sync(d.shared, &cerr)
+	return takeError(&cerr)
+}
+
+// SyncContext is Sync continuing the trace of ctx.
+//
+// The Rust spans of this sync — including the push/pull that runs on a worker thread
+// and the handler callbacks it dispatches — become children of the span in ctx.
+// Without a span in ctx it behaves exactly like Sync. Cancellation of ctx is not
+// honoured: the underlying sync is a blocking call.
+func (d *datatype) SyncContext(ctx context.Context) error {
+	defer runtime.KeepAlive(d)
+	var cerr C.QortooError
+	withTraceContext(ctx, func(traceparent, tracestate *C.char) {
+		C.qortoo_datatype_sync_with_context(d.shared, traceparent, tracestate, &cerr)
+	})
+	return takeError(&cerr)
+}
+
+// Unsubscribe marks this datatype as unsubscribing (see Client.UnsubscribeDatatype).
+func (d *datatype) Unsubscribe() error {
+	defer runtime.KeepAlive(d)
+	var cerr C.QortooError
+	C.qortoo_datatype_unsubscribe(d.shared, &cerr)
+	return takeError(&cerr)
+}
+
+// Key returns the datatype key.
+func (d *datatype) Key() string {
+	defer runtime.KeepAlive(d)
+	return goString(C.qortoo_datatype_get_key(d.shared))
+}
+
+// Type returns the datatype kind, which is fixed by the concrete datatype
+// (TypeCounter for a Counter).
+func (d *datatype) Type() DataType {
+	defer runtime.KeepAlive(d)
+	return DataType(C.qortoo_datatype_get_type(d.shared))
+}
+
+// State returns the current lifecycle state.
+func (d *datatype) State() DatatypeState {
+	defer runtime.KeepAlive(d)
+	return DatatypeState(C.qortoo_datatype_get_state(d.shared))
+}
+
+// ServerVersion returns the server-side version (0 before the first sync).
+func (d *datatype) ServerVersion() uint64 {
+	defer runtime.KeepAlive(d)
+	return uint64(C.qortoo_datatype_get_server_version(d.shared))
+}
+
+// ClientVersion returns the number of local operations.
+func (d *datatype) ClientVersion() uint64 {
+	defer runtime.KeepAlive(d)
+	return uint64(C.qortoo_datatype_get_client_version(d.shared))
+}
+
+// SyncedClientVersion returns the last client version acknowledged by the server.
+func (d *datatype) SyncedClientVersion() uint64 {
+	defer runtime.KeepAlive(d)
+	return uint64(C.qortoo_datatype_get_synced_client_version(d.shared))
+}
+
+// SetHandler registers (or replaces) a handler at the given priority
+// (lower priority runs first).
+func (d *datatype) SetHandler(priority uint, h *Handler) {
+	defer runtime.KeepAlive(d)
+	C.qortoo_datatype_set_handler(
+		d.shared,
+		C.uintptr_t(priority),
+		C.qortooGoStateChangeCB(),
+		C.qortooGoErrorCB(),
+		newHandlerUserdata(h),
+		C.qortooGoUserdataDropCB(),
+	)
+}
+
+// UnsetHandler removes the handler at the given priority. Returns true if one
+// was removed.
+func (d *datatype) UnsetHandler(priority uint) bool {
+	defer runtime.KeepAlive(d)
+	return bool(C.qortoo_datatype_unset_handler(d.shared, C.uintptr_t(priority)))
 }
 
 // buildDatatype runs the construction flow every datatype shares: it keeps the

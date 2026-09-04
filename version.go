@@ -11,7 +11,7 @@ import "fmt"
 // against. A mismatch with the linked native library means struct layouts, calling
 // conventions, or exported symbols may not agree, so the binding cannot safely
 // proceed — checked once at package init, before any other native call.
-const expectedABIMajor = 0
+const expectedABIMajor = 1
 
 func init() {
 	if got := uint32(C.qortoo_abi_version_major()); got != expectedABIMajor {

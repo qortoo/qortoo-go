@@ -56,7 +56,10 @@ func goQortooTxCallback(txCounter *C.QortooCounter, userdata C.uintptr_t) C.int3
 	if !ok {
 		return 1
 	}
-	return txc.run(&Counter{ptr: txCounter, borrowed: true})
+	return txc.run(&Counter{
+		datatype: datatype{shared: C.qortoo_counter_as_datatype(txCounter), borrowed: true},
+		ptr:      txCounter,
+	})
 }
 
 //export goQortooVariableTxCallback
@@ -65,5 +68,8 @@ func goQortooVariableTxCallback(txVariable *C.QortooVariable, userdata C.uintptr
 	if !ok {
 		return 1
 	}
-	return txc.run(&Variable{ptr: txVariable, borrowed: true})
+	return txc.run(&Variable{
+		datatype: datatype{shared: C.qortoo_variable_as_datatype(txVariable), borrowed: true},
+		ptr:      txVariable,
+	})
 }

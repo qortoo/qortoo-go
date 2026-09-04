@@ -19,13 +19,19 @@ Shared across all qortoo-* repos (canonical text in [qortoo-harness `AGENTS.md`]
 ## Project Structure & Module Organization
 
 - Root `.go` files hold the package: `qortoo.go` (`Client`, `LocalConnectivity`),
-  `datatype.go` (`Handler`, `DatatypeOptions`, and the construction/transaction
-  bodies every datatype shares), `counter.go` (`Counter`), `variable.go`
+  `datatype.go` (`Handler`, `DatatypeOptions`, and the `datatype` type carrying
+  the state, methods, construction, and transaction bodies every datatype
+  shares), `counter.go` (`Counter`), `variable.go`
   (`Variable` and its JSON value contract), `callbacks.go` (cgo
   callback trampolines), `errors.go`, `lifecycle.go`, `observability.go`,
   `version.go` (ABI version check), and `cgo.go` (cgo preamble and linker flags).
   A datatype file owns only its own native calls; anything datatype-agnostic
-  belongs in `datatype.go`.
+  belongs in `datatype.go`. A datatype embeds `datatype`, which promotes the
+  shared methods onto the exported type, and stores two handles: its own
+  `*C.Qortoo<Type>` for the calls that name the datatype, and the
+  `*C.QortooDatatype` borrowed from it via `qortoo_<type>_as_datatype` for the
+  `qortoo_datatype_*` calls that do not. Both point into one native allocation,
+  which the datatype's own `Close` releases.
 - `examples/observability/` contains runnable trace, log, metrics, and profiling
   programs against a local Grafana stack (see its own README).
 - `docs/` owns installation, Go API lifecycle/concurrency, Go observability, and
