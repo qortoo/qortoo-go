@@ -20,7 +20,8 @@ Shared across all qortoo-* repos (canonical text in [qortoo-harness `AGENTS.md`]
 
 - Root `.go` files hold the package: `qortoo.go` (`Client`, `LocalConnectivity`),
   `datatype.go` (`Handler`, `DatatypeOptions`, and the construction/transaction
-  bodies every datatype shares), `counter.go` (`Counter`), `callbacks.go` (cgo
+  bodies every datatype shares), `counter.go` (`Counter`), `variable.go`
+  (`Variable` and its JSON value contract), `callbacks.go` (cgo
   callback trampolines), `errors.go`, `lifecycle.go`, `observability.go`,
   `version.go` (ABI version check), and `cgo.go` (cgo preamble and linker flags).
   A datatype file owns only its own native calls; anything datatype-agnostic

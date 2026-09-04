@@ -22,6 +22,7 @@ const (
 	ErrCodeSyncFailed                   int32 = 210
 	ErrCodePushBufferExceededMaxMemSize int32 = 211
 	ErrCodeServerRejected               int32 = 213
+	ErrCodeValueConversion              int32 = 214
 
 	// Observability (900–), only from InitObservability/ShutdownObservability
 	ErrCodeObservabilityAlreadyInitialized   int32 = 900

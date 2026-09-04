@@ -7,7 +7,7 @@
 
 Go binding for the [Qortoo](https://github.com/qortoo/qortoo-rs) CRDT SDK. It wraps
 `qortoo-ffi`'s C ABI with cgo and exposes idiomatic Go types (`Client`, `Counter`,
-`Handler`) over the same conflict-free counter datatype, transactions, and
+`Variable`, `Handler`) over the same conflict-free datatypes, transactions, and
 observability pipeline as the Rust core.
 
 Qortoo has not reached a first release yet: the public API, the native SDK
@@ -103,6 +103,37 @@ func main() {
     fmt.Println("counter value:", value)
 }
 ```
+
+A `Variable` holds a single JSON value under last-writer-wins resolution. `Set` takes
+any value `encoding/json` can marshal and returns the value held just before the call;
+`Get` decodes the current value into a destination pointer:
+
+```go
+variable, err := client.SubscribeOrCreateVariable("profile", nil)
+if err != nil {
+    log.Fatal(err)
+}
+defer variable.Close()
+
+type Profile struct {
+    Name string `json:"name"`
+    Age  int    `json:"age"`
+}
+
+previous, err := variable.Set(Profile{Name: "ada", Age: 36})
+if err != nil {
+    log.Fatal(err)
+}
+fmt.Println("previous value:", previous) // nil before the first Set
+
+var profile Profile
+if err := variable.Get(&profile); err != nil {
+    log.Fatal(err)
+}
+```
+
+The stored JSON is what a Rust or any other binding reads back, so both sides must
+agree on the schema.
 
 Without a connectivity option, `NewClient` uses the SDK-default no-op backend, so this
 example never leaves the process. See

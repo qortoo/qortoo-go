@@ -58,3 +58,12 @@ func goQortooTxCallback(txCounter *C.QortooCounter, userdata C.uintptr_t) C.int3
 	}
 	return txc.run(&Counter{ptr: txCounter, borrowed: true})
 }
+
+//export goQortooVariableTxCallback
+func goQortooVariableTxCallback(txVariable *C.QortooVariable, userdata C.uintptr_t) C.int32_t {
+	txc, ok := cgo.Handle(userdata).Value().(*txContext[Variable])
+	if !ok {
+		return 1
+	}
+	return txc.run(&Variable{ptr: txVariable, borrowed: true})
+}

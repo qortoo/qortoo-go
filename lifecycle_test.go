@@ -189,6 +189,56 @@ func TestTransactionCounterRegistersNoCleanup(t *testing.T) {
 	require.EqualValues(t, 2, counter.Value())
 }
 
+func TestVariableCleanupKeepsClientReachable(t *testing.T) {
+	rec := installLifecycleRecorder(t)
+
+	client, err := NewClient("go-lifecycle-test", "variable-reach")
+	require.NoError(t, err)
+	variable, err := client.CreateVariable("reach-variable", nil)
+	require.NoError(t, err)
+
+	// Drop the only direct client reference; the variable must keep it alive.
+	client = nil //nolint:wastedassign // deliberate: releases the test's reference
+	gcSettle()
+	require.Zero(t, rec.count("client"), "client must not be cleaned up while its variable is reachable")
+
+	previous, err := variable.Set("still working")
+	require.NoError(t, err)
+	require.Nil(t, previous)
+
+	// The wrapper becomes unreachable here, so the cleanup backstop must free
+	// the variable handle and, with it, the last reference to the client.
+	variable = nil //nolint:wastedassign // deliberate: releases the test's reference
+	gcEventually(t, func() bool {
+		return rec.count("variable") == 1 && rec.count("client") == 1
+	}, "the variable cleanup must run and release the client")
+}
+
+func TestTransactionVariableRegistersNoCleanup(t *testing.T) {
+	rec := installLifecycleRecorder(t)
+
+	client, err := NewClient("go-lifecycle-test", "variable-tx")
+	require.NoError(t, err)
+	defer client.Close()
+	variable, err := client.CreateVariable("tx-variable", nil)
+	require.NoError(t, err)
+	defer variable.Close()
+
+	require.NoError(t, variable.Transaction("tx-tag", func(tx *Variable) error {
+		_, err := tx.Set("committed")
+		return err
+	}))
+
+	// The tx-scoped wrapper is unreachable now. If a cleanup had been
+	// registered for it, it would double-free the Rust-owned tx handle.
+	gcSettle()
+	require.Zero(t, rec.count("variable"), "tx-scoped variables must not register cleanups")
+
+	var value string
+	require.NoError(t, variable.Get(&value))
+	require.Equal(t, "committed", value)
+}
+
 func TestUseAfterCloseIsDefined(t *testing.T) {
 	client, err := NewClient("go-lifecycle-test", "closed")
 	require.NoError(t, err)
@@ -206,6 +256,20 @@ func TestUseAfterCloseIsDefined(t *testing.T) {
 	require.Error(t, err)
 	require.Error(t, counter.Sync())
 	require.Error(t, counter.Unsubscribe())
+
+	variable, err := client.CreateVariable("closed-variable", nil)
+	require.NoError(t, err)
+	variable.Close()
+	require.Empty(t, variable.Key())
+	require.EqualValues(t, -1, variable.Type())
+	require.EqualValues(t, -1, int32(variable.State()))
+	require.Zero(t, variable.ClientVersion())
+	previous, err := variable.Set("after close")
+	require.Error(t, err)
+	require.Nil(t, previous, "a failed Set must leave the previous-value buffer at its sentinel")
+	require.Error(t, variable.Get(new(string)))
+	require.Error(t, variable.Sync())
+	require.Error(t, variable.Unsubscribe())
 
 	client.Close()
 	require.Empty(t, client.Collection())

@@ -38,6 +38,11 @@ func freeCounterPtr(p *C.QortooCounter) {
 	notifyLifecycle("counter")
 }
 
+func freeVariablePtr(p *C.QortooVariable) {
+	C.qortoo_variable_free(p)
+	notifyLifecycle("variable")
+}
+
 func freeLocalConnectivityPtr(p *C.QortooLocalConnectivity) {
 	C.qortoo_local_connectivity_free(p)
 	notifyLifecycle("local_connectivity")

@@ -80,6 +80,51 @@ func main() {
 }
 ```
 
+## Store a JSON Value in a Variable
+
+A `Variable` holds a single JSON value and resolves concurrent writes by
+last-writer-wins, so every replica converges on the same winner regardless of the order
+in which the writes arrive.
+
+```go
+variable, err := client.SubscribeOrCreateVariable("profile", nil)
+if err != nil {
+    log.Fatal(err)
+}
+defer variable.Close()
+
+type Profile struct {
+    Name string `json:"name"`
+    Age  int    `json:"age"`
+}
+
+// Set returns the value held just before the call — nil before the first Set.
+previous, err := variable.Set(Profile{Name: "ada", Age: 36})
+if err != nil {
+    log.Fatal(err)
+}
+fmt.Println(previous)
+
+var profile Profile
+if err := variable.Get(&profile); err != nil {
+    log.Fatal(err)
+}
+```
+
+`Set` marshals with `encoding/json` before any native call, so a value it cannot
+marshal (a channel, a function, a cycle) is reported as the `encoding/json` error and
+leaves the variable untouched. `Get` decodes into the destination pointer exactly as
+`encoding/json` would.
+
+The bytes are stored verbatim and are what a Rust or any other binding reads back, so
+the value must be JSON-representable and both sides must agree on the schema. A
+variable holds JSON null until the first `Set`, which is indistinguishable from an
+explicitly stored `nil`; decode into a pointer or an `any` to tell null apart from a
+stored zero value. Numbers reaching an `any` destination are kept exact as
+`json.Number` instead of being rounded through `float64`. See
+[Variable](https://github.com/qortoo/qortoo-rs/blob/main/docs/variable.md) in
+`qortoo-rs` for the cross-language value contract.
+
 Without a connectivity option, `NewClient` uses the no-op backend. For local
 synchronization, share one `LocalConnectivity` between clients:
 
