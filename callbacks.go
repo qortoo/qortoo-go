@@ -9,10 +9,7 @@ package qortoo
 */
 import "C"
 
-import (
-	"fmt"
-	"runtime/cgo"
-)
+import "runtime/cgo"
 
 // handlerFromUserdata resolves the cgo.Handle passed through the uintptr_t
 // userdata. Returns nil when userdata does not carry a *Handler.
@@ -54,21 +51,25 @@ func goQortooUserdataDrop(userdata C.uintptr_t) {
 }
 
 //export goQortooTxCallback
-func goQortooTxCallback(txCounter *C.QortooCounter, userdata C.uintptr_t) (ret C.int32_t) {
-	txc, ok := cgo.Handle(userdata).Value().(*txContext)
+func goQortooTxCallback(txCounter *C.QortooCounter, userdata C.uintptr_t) C.int32_t {
+	txc, ok := cgo.Handle(userdata).Value().(*txContext[Counter])
 	if !ok {
 		return 1
 	}
-	defer func() {
-		if r := recover(); r != nil {
-			txc.err = fmt.Errorf("qortoo: transaction panicked: %v", r)
-			ret = 1
-		}
-	}()
-	tx := &Counter{ptr: txCounter, borrowed: true}
-	if err := txc.fn(tx); err != nil {
-		txc.err = err
+	return txc.run(&Counter{
+		datatype: datatype{shared: C.qortoo_counter_as_datatype(txCounter), borrowed: true},
+		ptr:      txCounter,
+	})
+}
+
+//export goQortooVariableTxCallback
+func goQortooVariableTxCallback(txVariable *C.QortooVariable, userdata C.uintptr_t) C.int32_t {
+	txc, ok := cgo.Handle(userdata).Value().(*txContext[Variable])
+	if !ok {
 		return 1
 	}
-	return 0
+	return txc.run(&Variable{
+		datatype: datatype{shared: C.qortoo_variable_as_datatype(txVariable), borrowed: true},
+		ptr:      txVariable,
+	})
 }

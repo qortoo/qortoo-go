@@ -11,12 +11,18 @@
 // Inside this repository, `make test` stages a matching SDK from the qortoo-rs
 // checkout selected by QORTOO_RS_DIR.
 //
+// A Client provides two datatypes: Counter, a conflict-free counter, and
+// Variable, a last-writer-wins holder of a single JSON value. Variable values
+// cross the boundary as encoding/json output and are stored verbatim, so they
+// must be JSON-representable and every language reading the same variable must
+// agree on the schema.
+//
 // Every object returned by this package owns a native handle and must be
 // released with its Close method. As a backstop, an unreachable wrapper frees
 // its native handle via a runtime.AddCleanup cleanup, but cleanups are not
-// guaranteed to run — treat Close as the contract, not the cleanup. A Counter
+// guaranteed to run — treat Close as the contract, not the cleanup. A datatype
 // keeps its Client reachable, so an otherwise unreferenced Client is not
-// cleaned up while any of its counters is still alive.
+// cleaned up while any of its datatypes is still alive.
 //
 // Close must not be called concurrently with other methods on the same object;
 // all other methods are safe for concurrent use.
@@ -30,7 +36,8 @@
 // The Rust core emits tracing spans and metrics but installs no subscriber,
 // recorder, or exporter on its own: call InitObservability once at startup to
 // choose where they go, and the *Context methods (Counter.SyncContext,
-// Counter.TransactionContext) to keep them in the trace of the calling span.
+// Variable.TransactionContext, and their siblings) to keep them in the trace of
+// the calling span.
 package qortoo
 
 /*
@@ -47,6 +54,7 @@ extern void goQortooOnStateChange(uintptr_t userdata, int32_t old_state, int32_t
 extern void goQortooOnError(uintptr_t userdata, int32_t code, char *msg);
 extern void goQortooUserdataDrop(uintptr_t userdata);
 extern int32_t goQortooTxCallback(QortooCounter *tx_counter, uintptr_t userdata);
+extern int32_t goQortooVariableTxCallback(QortooVariable *tx_variable, uintptr_t userdata);
 
 // Non-static on purpose: cgo preambles are per-file translation units, so these
 // must have external linkage to be callable from the other files of this package.
@@ -63,6 +71,9 @@ QortooUserdataDropCallback qortooGoUserdataDropCB(void) {
 }
 QortooTxCallback qortooGoTxCB(void) {
 	return goQortooTxCallback;
+}
+QortooVariableTxCallback qortooGoVariableTxCB(void) {
+	return goQortooVariableTxCallback;
 }
 */
 import "C"
@@ -85,4 +96,16 @@ func cString(s string) *C.char {
 
 func freeCString(s *C.char) {
 	C.free(unsafe.Pointer(s))
+}
+
+// takeOwnedBytes copies a Rust-owned byte buffer into Go memory and releases it
+// exactly once. The {null, 0} sentinel an out-parameter holds until the call
+// succeeds yields a nil slice, and freeing it is a no-op — so this is safe to
+// call on both the success and the failure path of every producing call.
+func takeOwnedBytes(b *C.QortooOwnedBytes) []byte {
+	defer C.qortoo_owned_bytes_free(*b)
+	if b.data == nil || b.len == 0 {
+		return nil
+	}
+	return C.GoBytes(unsafe.Pointer(b.data), C.int(b.len))
 }
