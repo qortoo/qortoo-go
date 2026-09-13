@@ -91,6 +91,11 @@ func main() {
 }
 ```
 
+This is [`examples/counter`](../examples/counter/main.go) verbatim — run it with
+`go run ./examples/counter` (after preparing the native SDK above). It's also what CI's
+"Compile examples" step builds on every change, so an API change that breaks this
+walkthrough fails CI instead of going unnoticed.
+
 ## Store a JSON Value in a Variable
 
 A `Variable` holds a single JSON value and resolves concurrent writes by
@@ -121,6 +126,10 @@ if err := variable.Get(&profile); err != nil {
     log.Fatal(err)
 }
 ```
+
+This fragment continues the `client` from the Counter section above; [`examples/variable`](../examples/variable/main.go)
+is the same walkthrough as its own standalone, runnable program (`go run
+./examples/variable`), built by CI the same way `examples/counter` is.
 
 `Set` marshals with `encoding/json` before any native call, so a value it cannot
 marshal (a channel, a function, a cycle) is reported as the `encoding/json` error and
