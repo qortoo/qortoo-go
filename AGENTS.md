@@ -15,6 +15,7 @@ Shared across all qortoo-* repos (canonical text in [qortoo-harness `AGENTS.md`]
 - All code comments and shared, tracked documentation must be written in **English**. Personal plan documents under `qortoo-harness/.local/plans/` are the exception: they must use the language of the current user session.
 - Favor SOLID principles, especially Single Responsibility (SRP) and Open/Closed (OCP), where practical. Check for these during review.
 - All individual plan documents, regardless of the repository they concern, belong in the qortoo-harness repository's gitignored `.local/plans/` directory. Task lists and working notes likewise belong under qortoo-harness's `.local/` — never commit them or propose committing them. Claude Code's project-scoped agent memory (`.claude/agent-memory/`) is likewise personal and gitignored, not shared team knowledge.
+- When work is carried out against a plan document in `.local/plans/`, update that document — status, checklist items, progress log — as part of the same work, not only when separately asked. The plan should reflect what was actually done (including corrections, reverted commits, and scope decisions) closely enough that reading it alone tells the true current state.
 
 ## Project Structure & Module Organization
 

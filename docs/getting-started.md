@@ -18,16 +18,20 @@ Qortoo dynamic library at runtime.
 
 ## Prepare the Native SDK
 
-There is no published native SDK release yet. Build one from a `qortoo-rs` checkout:
+There is no published native SDK release yet. Build one from a `qortoo-rs` checkout, at
+the revision this module is actually tested against:
 
 ```shell
+git -C /path/to/qortoo-rs checkout "$(grep -o 'QORTOO_RS_REF: [0-9a-f]*' .github/workflows/ci.yml | cut -d' ' -f2)"
 make -C /path/to/qortoo-rs native-sdk-stage
 export CGO_CFLAGS="-I/path/to/qortoo-rs/target/native-sdk/debug/include"
 export CGO_LDFLAGS="-L/path/to/qortoo-rs/target/native-sdk/debug/lib"
 ```
 
-The repositories do not need to be siblings. For development, `make test` stages the
-SDK automatically; set `QORTOO_RS_DIR` when the Rust checkout is elsewhere:
+The repositories do not need to be siblings. For development, `make test` stages the SDK
+automatically from whatever revision the `qortoo-rs` checkout is currently on — it does
+not check out `QORTOO_RS_REF` for you; set `QORTOO_RS_DIR` when that checkout is
+elsewhere:
 
 ```shell
 QORTOO_RS_DIR=/path/to/qortoo-rs make test
@@ -46,6 +50,13 @@ At process startup, the package compares the linked library's ABI major with the
 major in `version.go`. A mismatch panics before the application can cross an unsafe ABI
 boundary. The SDK version, ABI version, target, and build profile are also recorded in
 the SDK's `manifest.json`.
+
+That check is narrower than it may look. A matching ABI major only means the struct
+layouts, symbol names, and calling conventions the two sides agree on haven't changed —
+it says nothing about behavior. The only revision this module's own CI has actually built
+and tested it against is the exact one in `QORTOO_RS_REF`; a different `qortoo-rs`
+revision that happens to share the same ABI major passes the panic check but is
+untested by this repository's own CI.
 
 ## Create and Update a Counter
 
@@ -80,6 +91,11 @@ func main() {
 }
 ```
 
+This is [`examples/counter`](../examples/counter/main.go) verbatim — run it with
+`go run ./examples/counter` (after preparing the native SDK above). It's also what CI's
+"Compile examples" step builds on every change, so an API change that breaks this
+walkthrough fails CI instead of going unnoticed.
+
 ## Store a JSON Value in a Variable
 
 A `Variable` holds a single JSON value and resolves concurrent writes by
@@ -110,6 +126,10 @@ if err := variable.Get(&profile); err != nil {
     log.Fatal(err)
 }
 ```
+
+This fragment continues the `client` from the Counter section above; [`examples/variable`](../examples/variable/main.go)
+is the same walkthrough as its own standalone, runnable program (`go run
+./examples/variable`), built by CI the same way `examples/counter` is.
 
 `Set` marshals with `encoding/json` before any native call, so a value it cannot
 marshal (a channel, a function, a cycle) is reported as the `encoding/json` error and

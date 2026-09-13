@@ -32,6 +32,19 @@ datatype.Close -> Client.Close -> LocalConnectivity.Close
                -> ShutdownObservability -> application telemetry shutdown
 ```
 
+## Unsubscribe vs Close
+
+These do different things and neither substitutes for the other. `Close` only releases
+this process's native handle; it never tells anything else that the datatype is no
+longer wanted. `Unsubscribe` is the opposite: it records local intent to detach and,
+once a following `Sync` (or the next automatic one, with a realtime backend) carries
+that intent through, moves the datatype toward `StateDisabled` — but the Go handle
+itself still needs its own `Close` afterward. Call `Unsubscribe` to stop participating
+in a datatype while keeping the process running; call `Close` (always, eventually) to
+free the handle regardless of whether you ever unsubscribed. See
+[Datatype State](https://github.com/qortoo/qortoo-rs/blob/main/docs/datatype-state.md)
+in `qortoo-rs` for the state machine `Unsubscribe` drives.
+
 ## Callback Concurrency
 
 `Handler.OnStateChange` and `Handler.OnError` run asynchronously on Qortoo-owned Rust
@@ -56,6 +69,17 @@ Register a build-time handler through `DatatypeOptions` when it must observe the
 automatic synchronization. `SetHandler` replaces the handler at the same priority;
 `UnsetHandler` removes it. Handler userdata is released exactly once when Rust drops the
 registration, including failed registration paths.
+
+## Context and Cancellation
+
+`SyncContext(ctx)` carries `ctx`'s trace span across the FFI boundary, so the Rust
+push/pull it drives — and any handler callback that push/pull goes on to dispatch —
+shows up as a child of that span rather than of an unrelated background task. That is
+the only thing `ctx` does here: `Sync` and `SyncContext` are both blocking calls, and
+neither honours `ctx`'s cancellation or deadline. A canceled or expired `ctx` does not
+interrupt an in-flight sync; the call still runs to completion (or its own error) before
+returning. Plan blocking-call timeouts accordingly — a `context.WithTimeout` around
+`SyncContext` will not actually bound how long the call can take.
 
 ## Transactions
 

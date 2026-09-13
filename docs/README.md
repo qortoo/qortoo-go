@@ -7,7 +7,7 @@ header, and native SDK releases are maintained in
 | Document | Description |
 | --- | --- |
 | [Getting Started](getting-started.md) | Native SDK setup, build requirements, and the first `Counter` and `Variable` |
-| [Lifecycle and Concurrency](lifecycle-and-concurrency.md) | `Close`, cleanup fallback, callback threading, and transaction lifetime |
+| [Lifecycle and Concurrency](lifecycle-and-concurrency.md) | `Close` vs `Unsubscribe`, cleanup fallback, callback threading, context/cancellation, and transaction lifetime |
 | [Observability](observability.md) | Logging, tracing, metrics, shutdown, and W3C trace-context propagation |
 | [Performance](performance.md) | Go benchmarks and cross-repository Rust/Go comparison workflow |
 
