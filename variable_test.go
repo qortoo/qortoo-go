@@ -80,6 +80,11 @@ func TestVariableRoundTripsJSONShapes(t *testing.T) {
 			require.NoError(t, variable.Get(&got))
 			require.Equal(t, map[string]int{"x": 1, "y": 2}, got)
 		}},
+		{"integer-map-keys", map[int]string{1: "one", 2: "two"}, func(t *testing.T, variable *Variable) {
+			var got map[int]string
+			require.NoError(t, variable.Get(&got))
+			require.Equal(t, map[int]string{1: "one", 2: "two"}, got)
+		}},
 		{"nil", nil, func(t *testing.T, variable *Variable) {
 			var got *profile
 			require.NoError(t, variable.Get(&got))
@@ -172,6 +177,9 @@ func TestVariableSetRejectsUnmarshallableValues(t *testing.T) {
 	_, err = variable.Set(make(chan int))
 	var unsupported *json.UnsupportedTypeError
 	require.ErrorAs(t, err, &unsupported, "the encoding/json error must be returned as-is")
+
+	_, err = variable.Set(map[[1]int]string{{1}: "unsupported-key"})
+	require.Error(t, err, "complex map keys cannot be encoded as JSON object keys")
 
 	cyclic := &node{}
 	cyclic.Next = cyclic
