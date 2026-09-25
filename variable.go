@@ -27,9 +27,10 @@ import (
 // same winner regardless of the order in which the writes arrive.
 //
 // Values cross the boundary as JSON produced by encoding/json, which is also what a
-// Rust or any other binding reads back — so the value must be JSON-representable
-// (channels, functions, cycles, and non-string map keys are not) and both sides must
-// agree on the schema. The stored bytes are kept verbatim: they are never reparsed,
+// Rust or any other binding reads back — so the value must be JSON-representable and
+// both sides must agree on the schema. Map keys follow encoding/json: strings,
+// integer types, and types implementing encoding.TextMarshaler are supported; other
+// key types are not. The stored bytes are kept verbatim: they are never reparsed,
 // reordered, or re-encoded by the SDK.
 type Variable struct {
 	datatype
