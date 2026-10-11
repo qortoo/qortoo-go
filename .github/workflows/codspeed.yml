@@ -12,7 +12,9 @@ on:
 jobs:
   benchmarks:
     name: Run benchmarks
-    runs-on: codspeed-macro
+    # CodSpeed macro runners (`codspeed-macro`) give far more stable walltime
+    # measurements; switch to them once they are enabled for this organization.
+    runs-on: ubuntu-latest
     permissions:
       contents: read # required for actions/checkout
       id-token: write # required for OIDC authentication with CodSpeed
