@@ -347,24 +347,25 @@ func TestHandlerOnErrorCopiesCallbackMessage(t *testing.T) {
 	defer counter.Close()
 
 	const safetyBound = 50_000
-	var got Error
 	for range safetyBound {
+		previousValue := counter.Value()
 		_, err = counter.Increase()
-		require.NoError(t, err)
-		select {
-		case got = <-errors:
-			goto received
-		default:
+		if err != nil {
+			require.ErrorIs(t, err, &Error{Code: ErrCodePushBufferExceededMaxMemSize})
+			require.Equal(t, previousValue, counter.Value(), "the rejected write must be rolled back")
+			break
 		}
 	}
+	require.ErrorIs(t, err, &Error{Code: ErrCodePushBufferExceededMaxMemSize}, "the buffer must fill within the safety bound")
 
+	// The operation returns its error independently of the asynchronous callback.
+	var got Error
 	select {
 	case got = <-errors:
 	case <-time.After(5 * time.Second):
 		require.FailNow(t, "timed out waiting for OnError")
 	}
 
-received:
 	require.Equal(t, ErrCodePushBufferExceededMaxMemSize, got.Code)
 	require.NotEmpty(t, got.Msg, "the Rust-owned callback message must be copied into Go memory")
 }

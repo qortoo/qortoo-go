@@ -40,7 +40,8 @@ endif
 .PHONY: test
 test: native-sdk
 	go vet ./...
-	go test -race ./...
+	# Rebuild and rerun against the native library, which Go's caches do not track.
+	go test -a -race -count=1 ./...
 
 .PHONY: fmt-check
 fmt-check:
@@ -75,7 +76,7 @@ lint: native-sdk fmt-check
 
 .PHONY: coverage
 coverage: native-sdk
-	go test -race -covermode=atomic -coverprofile="$(COVERAGE_PROFILE)" .
+	go test -a -race -count=1 -covermode=atomic -coverprofile="$(COVERAGE_PROFILE)" .
 	go tool cover -func="$(COVERAGE_PROFILE)"
 	go tool cover -html="$(COVERAGE_PROFILE)" -o="$(COVERAGE_HTML)"
 	@total="$$(go tool cover -func="$(COVERAGE_PROFILE)" | awk '/^total:/ { gsub(/%/, "", $$3); print $$3 }')"; \

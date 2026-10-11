@@ -47,8 +47,9 @@ export CGO_LDFLAGS="-L/path/to/native-sdk/lib"
 make test
 ```
 
-`make test` is equivalent to `go vet ./...` and `go test -race ./...` once
-`CGO_CFLAGS`/`CGO_LDFLAGS` are in place.
+`make test` is equivalent to `go vet ./...` and `go test -a -race -count=1 ./...` once
+`CGO_CFLAGS`/`CGO_LDFLAGS` are in place. Rebuilding and rerunning ensures the tests
+use the staged native library, whose changes Go's caches do not track.
 
 The local quality gates use the same native SDK setup:
 

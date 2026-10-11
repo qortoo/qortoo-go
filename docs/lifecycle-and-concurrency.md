@@ -52,6 +52,13 @@ worker threads. A handler may be entered concurrently, so its captured state mus
 synchronized. It should also return promptly: blocking a handler delays later
 notifications, `Client.Close`, and observability shutdown.
 
+When a write exceeds the push buffer capacity, it returns
+`ErrCodePushBufferExceededMaxMemSize` and restores the value from before the write.
+`Handler.OnError` also receives the error asynchronously; applications must handle
+the returned error without waiting for that callback. See
+[Transactions and Rollback](https://github.com/qortoo/qortoo-rs/blob/main/docs/transaction-and-rollback.md)
+for the transaction failure contract.
+
 ```go
 var mu sync.Mutex
 states := make([]qortoo.DatatypeState, 0, 4)

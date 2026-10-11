@@ -75,4 +75,4 @@ jobs:
         uses: CodSpeedHQ/action@v5
         with:
           mode: walltime
-          run: go test -bench=. .
+          run: go test -a -count=1 -bench=. .
