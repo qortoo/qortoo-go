@@ -99,7 +99,8 @@ jobs:
 
       - name: go test -race
         working-directory: qortoo-go
-        run: go test -race ./...
+        # Rebuild and rerun: Go's caches do not track the external native library.
+        run: go test -a -race -count=1 ./...
 
       - name: Compile examples
         working-directory: qortoo-go
