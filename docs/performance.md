@@ -122,3 +122,20 @@ Validate parsing without sending a report:
 ```shell
 BENCHER_DRY_RUN=1 make bench-upload RESULT=/path/to/result
 ```
+
+## Continuous Benchmarking with CodSpeed
+
+`.github/workflows/codspeed.yml` runs the Go half of the benchmarks on every pull
+request and every push to `main`, using the CodSpeed walltime instrument on a GitHub
+hosted runner. It links a release native SDK built from the `qortoo-rs` commit pinned in
+`ci.yml`, and reports results to [CodSpeed](https://app.codspeed.io/qortoo/qortoo-go).
+CodSpeed chooses the iteration count itself, so these numbers track Go-side regressions
+over time and are not comparable with the fixed-budget Rust/Go overhead runs above.
+
+To run the same benchmarks locally with the CodSpeed CLI:
+
+```shell
+CGO_CFLAGS="-I/path/to/native-sdk/include" \
+CGO_LDFLAGS="-L/path/to/native-sdk/lib" \
+  codspeed run --mode walltime -- go test -bench=. .
+```

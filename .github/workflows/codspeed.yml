@@ -1,0 +1,78 @@
+name: CodSpeed
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  # `workflow_dispatch` allows CodSpeed to trigger backtest
+  # performance analysis in order to generate initial data.
+  workflow_dispatch: {}
+
+jobs:
+  benchmarks:
+    name: Run benchmarks
+    # CodSpeed macro runners (`codspeed-macro`) give far more stable walltime
+    # measurements; switch to them once they are enabled for this organization.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # required for actions/checkout
+      id-token: write # required for OIDC authentication with CodSpeed
+    steps:
+      # qortoo-go must sit at the workspace root: the CodSpeed runner reads the
+      # git metadata of the workspace repository when uploading results.
+      - name: Checkout qortoo-go
+        uses: actions/checkout@v4
+
+      # Reuse the qortoo-rs pin from ci.yml (maintained by canary.yml) so the
+      # benchmarks always link the same qortoo-ffi commit as the tests.
+      - name: Resolve pinned qortoo-rs commit
+        run: |
+          ref=$(sed -n 's/^  QORTOO_RS_REF: //p' .github/workflows/ci.yml)
+          if ! printf '%s' "$ref" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "error: could not read QORTOO_RS_REF from ci.yml" >&2
+            exit 1
+          fi
+          echo "QORTOO_RS_REF=$ref" >> "$GITHUB_ENV"
+
+      # The leading underscore keeps this checkout out of Go package patterns.
+      - name: Checkout qortoo-rs (pinned)
+        uses: actions/checkout@v4
+        with:
+          repository: qortoo/qortoo-rs
+          ref: ${{ env.QORTOO_RS_REF }}
+          path: _qortoo-rs
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@1.97.1
+
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache-dependency-path: go.sum
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            _qortoo-rs/target
+          key: ${{ runner.os }}-${{ runner.arch }}-cargo-ffi-release-${{ env.QORTOO_RS_REF }}-${{ hashFiles('_qortoo-rs/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-cargo-ffi-release-${{ env.QORTOO_RS_REF }}-
+
+      # Benchmarks are only meaningful against a release build of qortoo-ffi
+      # (see docs/performance.md).
+      - name: Stage release native SDK
+        run: |
+          make -C _qortoo-rs native-sdk-stage NATIVE_SDK_PROFILE=release
+          echo "CGO_CFLAGS=-I${{ github.workspace }}/_qortoo-rs/target/native-sdk/release/include" >> "$GITHUB_ENV"
+          echo "CGO_LDFLAGS=-L${{ github.workspace }}/_qortoo-rs/target/native-sdk/release/lib" >> "$GITHUB_ENV"
+
+      - name: Run the benchmarks
+        uses: CodSpeedHQ/action@v5
+        with:
+          mode: walltime
+          run: go test -bench=. .
