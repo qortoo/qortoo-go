@@ -1,27 +1,14 @@
 package qortoo
 
-// Go half of the Rust/Go benchmark pair.
+// Go-only diagnostics executed by the SDK's CodSpeed workflow.
+// Central Rust/Go latency workloads, contracts, and official results belong to
+// https://github.com/qortoo/qortoo-bench. These adaptive testing.B measurements
+// are not the central fixed-budget comparison and do not isolate cgo overhead.
 //
-// Every benchmark here mirrors a scenario in qortoo-rs's
-// `benches/qortoo_bench.rs`, so the difference between the two ns/op figures is
-// the cost of the cgo binding for that operation. Keep both files and
-// `benchmarks/contract.tsv` in sync. See `docs/performance.md` for the
-// measurement protocol. These numbers are only valid when linked against a
-// release build of qortoo-ffi (`make bench` enforces that).
-//
-// Common conditions (mirrored in Rust): LocalConnectivity in manual mode so no
-// background sync interferes, single-threaded measurement, and no handler
-// registered — the trampoline cost is represented by the transaction scenario.
-//
-// Write scenarios replace their datatype every resetEvery* operations with the
-// timer stopped. Without that the reported cost depends on how many operations
-// the harness happened to run: a datatype accumulates its pending push buffer
-// and its server-side history, and both make later operations slower (a long
-// enough run eventually exceeds the push buffer limit outright). Resetting keeps
-// both halves of the pair in the same flat regime.
-//
-// These use the classic b.N loop rather than b.Loop because they need
-// StopTimer/StartTimer to exclude the resets that the Rust side also excludes.
+// Measurements use a release native SDK, manual LocalConnectivity, one caller
+// thread, and no registered handler. Mutable scenarios stop the timer to replace
+// datatypes so pending operations and local server history stay bounded.
+// Go allocation counters describe the Go heap, not Rust native allocations.
 
 import (
 	"fmt"
@@ -31,17 +18,13 @@ import (
 const (
 	benchCollection = "bench-collection"
 
-	// implLabel makes every benchmark a sub-benchmark named `impl=go`, so a
-	// merged result file can be split with `benchstat -col /impl` to put this
-	// half next to the Rust half of the same scenario. The Rust harness emits
-	// `impl=rust` lines under the identical scenario names.
+	// implLabel identifies the Go API path in diagnostic output.
 	implLabel = "impl=go"
 
 	// Operations recorded per transaction in the transaction scenario.
 	txOps = 10
 
-	// Single writes performed on one datatype before it is replaced. Must match
-	// RESET_EVERY_OPS in benches/qortoo_bench.rs.
+	// Single writes performed on one datatype before it is replaced.
 	resetEveryOps = 50_000
 
 	// Transactions performed on one datatype before it is replaced.
@@ -51,10 +34,8 @@ const (
 	// keeps every pushed transaction in its history, which is what this bounds.
 	resetEverySyncs = 5_000
 
-	// Counters built per client in the build scenario, matching
-	// BUDGET_BUILD_COUNTER in benches/qortoo_bench.rs. Run that benchmark with
-	// `-benchtime 100x`; beyond this budget the per-build cost stops being
-	// representative, so the client is recycled to at least keep the run alive.
+	// Counters built per client in the build diagnostic. Client recycling
+	// bounds datatype registrations during adaptive testing.B runs.
 	countersPerClient = 100
 )
 
@@ -149,7 +130,7 @@ func BenchmarkIncreaseBy(b *testing.B) {
 }
 
 // BenchmarkGetValue measures the cheapest call of the whole API, where the
-// relative weight of the binding is largest.
+// call overhead is visible in the complete Go API path.
 func BenchmarkGetValue(b *testing.B) {
 	b.Run(implLabel, func(b *testing.B) {
 		client := newManagedBenchClient(b, "bench-get-value")
@@ -168,7 +149,7 @@ func BenchmarkGetValue(b *testing.B) {
 }
 
 // BenchmarkTransaction measures a transaction of txOps operations, which crosses
-// the callback trampoline (Go → Rust → Go) that Rust does not pay.
+// the callback trampoline (Go → Rust → Go).
 func BenchmarkTransaction(b *testing.B) {
 	b.Run(implLabel, func(b *testing.B) {
 		benchWithReset(b, "bench-transaction", resetEveryTxs, func(counter *Counter) {
@@ -204,13 +185,11 @@ func BenchmarkSyncLocal(b *testing.B) {
 
 // BenchmarkBuildCounter measures building and closing a counter — the one-time
 // cost per datatype, including this binding's runtime.AddCleanup registration.
-// Run it with `-benchtime 100x` (as `make bench` does): the per-build cost is
-// not constant, so only a fixed budget is comparable with the Rust side.
+// The per-build cost is not constant; the client is recycled to bound registrations.
 func BenchmarkBuildCounter(b *testing.B) {
 	b.Run(implLabel, func(b *testing.B) {
 		// Keys are unique because a key can only be registered once per client;
-		// formatting them is deliberately left out of the measured region, as it
-		// is on the Rust side.
+		// formatting them is deliberately left out of the measured region.
 		keys := make([]string, b.N)
 		for i := range keys {
 			keys[i] = fmt.Sprintf("build-%d", i)
