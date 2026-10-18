@@ -4,10 +4,14 @@ name: Canary (qortoo-rs main)
 # breakage early without making routine qortoo-go PRs depend on qortoo-rs's own CI.
 # Once the same qortoo-rs commit passes on every supported OS, this workflow opens or
 # updates a pull request that pins CI to the verified commit.
+# qortoo-rs dispatches this workflow on main pushes; manual retries remain available.
 on:
-  schedule:
-    - cron: "0 6 * * *"
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      qortoo_rs_sha:
+        description: 'Exact qortoo-rs/main SHA; leave empty to test current main'
+        required: false
+        type: string
 
 concurrency:
   group: qortoo-rs-ref-update
@@ -21,21 +25,37 @@ jobs:
       contents: read
     outputs:
       qortoo_rs_ref: ${{ steps.ref.outputs.sha }}
+      current: ${{ steps.ref.outputs.current }}
     steps:
       - name: Resolve qortoo-rs/main
         id: ref
+        env:
+          REQUESTED_SHA: ${{ inputs.qortoo_rs_sha }}
         run: |
           sha=$(git ls-remote https://github.com/qortoo/qortoo-rs.git refs/heads/main | awk '{ print $1 }')
           if ! printf '%s' "$sha" | grep -Eq '^[0-9a-f]{40}$'; then
             echo "error: could not resolve qortoo-rs/main to a commit SHA" >&2
             exit 1
           fi
+          if [ -n "$REQUESTED_SHA" ]; then
+            if ! printf '%s' "$REQUESTED_SHA" | grep -Eq '^[0-9a-f]{40}$'; then
+              echo "error: qortoo_rs_sha must be a full commit SHA" >&2
+              exit 1
+            fi
+            if [ "$REQUESTED_SHA" != "$sha" ]; then
+              echo "current=false" >> "$GITHUB_OUTPUT"
+              echo "Skipping superseded qortoo-rs commit $REQUESTED_SHA; main is $sha." >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+          fi
+          echo "current=true" >> "$GITHUB_OUTPUT"
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
           echo "Resolved qortoo-rs/main to \`$sha\`." >> "$GITHUB_STEP_SUMMARY"
 
   test:
     name: canary (${{ matrix.os }})
     needs: resolve
+    if: needs.resolve.outputs.current == 'true'
     runs-on: ${{ matrix.os }}
     permissions:
       contents: read
@@ -132,6 +152,18 @@ jobs:
             git fetch origin "refs/heads/$UPDATE_BRANCH:refs/remotes/origin/$UPDATE_BRANCH"
           fi
           git switch -C "$UPDATE_BRANCH" origin/main
+
+          # A newer upstream push may arrive while the matrix is running.
+          latest_ref=$(git ls-remote https://github.com/qortoo/qortoo-rs.git refs/heads/main | awk '{ print $1 }')
+          if ! printf '%s' "$latest_ref" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "error: could not resolve qortoo-rs/main before updating the pin" >&2
+            exit 1
+          fi
+          if [ "$latest_ref" != "$QORTOO_RS_REF" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping pin update: qortoo-rs/main advanced to $latest_ref." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
 
           ci_file=.github/workflows/ci.yml
           matches=$(grep -c '^  QORTOO_RS_REF: ' "$ci_file")
