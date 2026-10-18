@@ -150,7 +150,7 @@ for the in-memory backend used in tests.
   callback threading, and transaction lifetime
 - [Observability](docs/observability.md) — logging, tracing, metrics, shutdown, and
   trace-context propagation
-- [Performance](docs/performance.md) — Go benchmarks and Rust/Go comparison tooling
+- [Performance](docs/performance.md) — Central benchmark runs, contracts, and result interpretation
 
 The C ABI architecture, error mapping, callback/userdata ownership, header generation,
 and native SDK release process remain in
