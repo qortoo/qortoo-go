@@ -2,7 +2,6 @@
 
 [![codecov](https://codecov.io/gh/qortoo/qortoo-go/branch/main/graph/badge.svg)](https://codecov.io/gh/qortoo/qortoo-go)
 [![CI](https://github.com/qortoo/qortoo-go/actions/workflows/ci.yml/badge.svg)](https://github.com/qortoo/qortoo-go/actions/workflows/ci.yml)
-[![CodSpeed](https://img.shields.io/endpoint?url=https://codspeed.io/badge.json)](https://app.codspeed.io/qortoo/qortoo-go?utm_source=badge)
 [![GitHub commit activity](https://img.shields.io/github/commit-activity/w/qortoo/qortoo-go)](https://github.com/qortoo/qortoo-go/graphs/commit-activity)
 [![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/qortoo/qortoo-go/ci.yml)](https://github.com/qortoo/qortoo-go/actions/workflows/ci.yml)
 

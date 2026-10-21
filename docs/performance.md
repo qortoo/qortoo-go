@@ -21,10 +21,12 @@ complete public API path, serialization, and runtime work; they are not pure cgo
 overhead. Do not combine measurements from different host environments as a
 binding-cost comparison.
 
-## Go-only diagnostics
+## Automatic main measurements
 
-The SDK's CodSpeed workflow runs the five Go benchmarks in `benchmark_test.go`
-against a release native SDK. These adaptive `testing.B` runs are Go-only
-diagnostics, not the central fixed-budget Rust/Go comparison. Their Go allocation
-counters cover the Go heap and do not include Rust native heap allocations.
-The central latency harness does not measure allocations.
+Every push to this SDK's `main` requests a run in qortoo-bench with the exact push
+SHA. The central request ledger preserves the dependency selection and attempt
+outcomes. See the [central workflow guide](https://github.com/qortoo/qortoo-bench/blob/main/docs/central-workflow.md)
+for credentials, request status, retries, and compatibility failures.
+
+SDK pull requests do not automatically request central measurements. Manual central
+runs remain available. Central latency measurements do not measure heap allocations.

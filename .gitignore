@@ -31,6 +31,5 @@ go.work.sum
 .idea/
 .vscode/
 
-# Developer-local plans and generated benchmark runs
+# Developer-local plans
 .local/
-benchmarks/results/
