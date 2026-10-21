@@ -58,6 +58,19 @@ and tested it against is the exact one in `QORTOO_RS_REF`; a different `qortoo-r
 revision that happens to share the same ABI major passes the panic check but is
 untested by this repository's own CI.
 
+## Upstream Compatibility Checks
+
+Each push to `qortoo-rs/main` requests this repository's **Canary (qortoo-rs main)**
+workflow with the exact upstream commit SHA. It checks ABI compatibility and runs
+Go tests on Linux and macOS, then opens or updates the native SDK pin pull request
+only after both pass. Superseded commits are skipped, and a commit that is no longer
+upstream `main` after testing does not update the pin.
+
+To retry, run the Canary workflow on this repository's `main` branch. Leave
+`qortoo_rs_sha` empty to resolve current upstream `main`. The workflow has no daily
+schedule. Maintainers must enable this receiver on `qortoo-go/main` before enabling
+the caller in `qortoo-rs`.
+
 ## Create and Update a Counter
 
 ```go
