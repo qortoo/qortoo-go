@@ -9,7 +9,7 @@ header, and native SDK releases are maintained in
 | [Getting Started](getting-started.md) | Native SDK setup, build requirements, and the first `Counter` and `Variable` |
 | [Lifecycle and Concurrency](lifecycle-and-concurrency.md) | `Close` vs `Unsubscribe`, cleanup fallback, callback threading, context/cancellation, and transaction lifetime |
 | [Observability](observability.md) | Logging, tracing, metrics, shutdown, and W3C trace-context propagation |
-| [Performance](performance.md) | Central benchmark ownership and Go diagnostic interpretation |
+| [Performance](performance.md) | Central benchmark runs and result interpretation |
 
 A `Client` provides two datatypes: `Counter`, a conflict-free counter, and `Variable`,
 a last-writer-wins holder of a single JSON value. `Variable` values cross the boundary

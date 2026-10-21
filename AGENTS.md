@@ -37,7 +37,7 @@ Shared across all qortoo-* repos (canonical text in [qortoo-harness `AGENTS.md`]
   programs against a local Grafana stack (see its own README).
 - `docs/` owns installation, Go API lifecycle/concurrency, Go observability, and
   binding-performance guidance.
-- Benchmark contracts and official Rust/Go results belong to [qortoo-bench](https://github.com/qortoo/qortoo-bench). `benchmark_test.go` supplies Go-only diagnostics for the SDK CodSpeed workflow.
+- Benchmark contracts and official Rust/Go results belong to [qortoo-bench](https://github.com/qortoo/qortoo-bench).
 
 ## Go Toolchain
 
