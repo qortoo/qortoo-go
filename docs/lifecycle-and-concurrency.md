@@ -45,6 +45,17 @@ free the handle regardless of whether you ever unsubscribed. See
 [Datatype State](https://github.com/qortoo/qortoo-rs/blob/main/docs/datatype-state.md)
 in `qortoo-rs` for the state machine `Unsubscribe` drives.
 
+## Initial State and Automatic Synchronization
+
+Creation and subscription select an initial lifecycle state. With a realtime
+backend, automatic synchronization can advance that state before the constructor
+returns. The SDK-default no-op backend also acknowledges operations automatically,
+so a newly created counter may already be in `StateSubscribed` when inspected.
+
+To inspect pre-sync states deterministically, create a `LocalConnectivity`, call
+`SetRealtime(false)` before constructing the client and datatypes, and pass it with
+`WithLocalConnectivity`. Use explicit `Sync` calls to drive synchronization.
+
 ## Callback Concurrency
 
 `Handler.OnStateChange` and `Handler.OnError` run asynchronously on Qortoo-owned Rust

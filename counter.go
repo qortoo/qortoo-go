@@ -42,7 +42,8 @@ func (c *Client) buildCounter(
 	return ctr, nil
 }
 
-// CreateCounter builds a counter in StateCreating (writable).
+// CreateCounter starts creating a writable counter in StateCreating.
+// Realtime synchronization may advance its state before this call returns.
 func (c *Client) CreateCounter(key string, opts *DatatypeOptions) (*Counter, error) {
 	return c.buildCounter(key, opts, func(cl *C.QortooClient, k *C.char, o *C.QortooDatatypeOptions, e *C.QortooError) *C.QortooCounter {
 		return C.qortoo_counter_create(cl, k, o, e)
