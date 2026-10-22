@@ -33,7 +33,12 @@ func TestDatatypeStateString(t *testing.T) {
 }
 
 func TestClientAndCounterLifecycle(t *testing.T) {
-	client, err := NewClient("go-binding-test", "lifecycle")
+	conn := NewLocalConnectivity()
+	defer conn.Close()
+	// Keep the pre-sync state deterministic while checking creation and writes.
+	conn.SetRealtime(false)
+
+	client, err := NewClient("go-binding-test", "lifecycle", WithLocalConnectivity(conn))
 	require.NoError(t, err)
 	defer client.Close()
 
