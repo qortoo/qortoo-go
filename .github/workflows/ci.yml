@@ -29,6 +29,10 @@ jobs:
         with:
           path: qortoo-go
 
+      - name: Test benchmark notifier routing
+        working-directory: qortoo-go
+        run: node --test .github/tests/benchmark-pr-dispatch.test.mjs
+
       - name: Checkout qortoo-rs (pinned)
         uses: actions/checkout@v4
         with:
