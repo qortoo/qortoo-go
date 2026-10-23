@@ -33,3 +33,8 @@ go.work.sum
 
 # Developer-local plans
 .local/
+
+# Staged native SDK and local benchmark artifacts
+/_qortoo-rs/
+/benchmarks/
+
