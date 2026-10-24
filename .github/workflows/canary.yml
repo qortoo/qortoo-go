@@ -4,12 +4,12 @@ name: Canary (qortoo-rs main)
 # breakage early without making routine qortoo-go PRs depend on qortoo-rs's own CI.
 # Once the same qortoo-rs commit passes on every supported OS, this workflow opens or
 # updates a pull request that pins CI to the verified commit.
-# qortoo-rs dispatches this workflow on main pushes; manual retries remain available.
+# qortoo-rs requests this after successful main builds; manual runs remain available.
 on:
   workflow_dispatch:
     inputs:
       qortoo_rs_sha:
-        description: 'Exact qortoo-rs/main SHA; leave empty to test current main'
+        description: 'Optional full Rust SHA; leave empty to test current main'
         required: false
         type: string
 
@@ -25,37 +25,26 @@ jobs:
       contents: read
     outputs:
       qortoo_rs_ref: ${{ steps.ref.outputs.sha }}
-      current: ${{ steps.ref.outputs.current }}
     steps:
-      - name: Resolve qortoo-rs/main
+      - name: Resolve Rust revision once
         id: ref
         env:
           REQUESTED_SHA: ${{ inputs.qortoo_rs_sha }}
         run: |
-          sha=$(git ls-remote https://github.com/qortoo/qortoo-rs.git refs/heads/main | awk '{ print $1 }')
+          sha="$REQUESTED_SHA"
+          if [ -z "$sha" ]; then
+            sha=$(git ls-remote https://github.com/qortoo/qortoo-rs.git refs/heads/main | awk '{ print $1 }')
+          fi
           if ! printf '%s' "$sha" | grep -Eq '^[0-9a-f]{40}$'; then
-            echo "error: could not resolve qortoo-rs/main to a commit SHA" >&2
+            echo "error: expected a full Rust commit SHA" >&2
             exit 1
           fi
-          if [ -n "$REQUESTED_SHA" ]; then
-            if ! printf '%s' "$REQUESTED_SHA" | grep -Eq '^[0-9a-f]{40}$'; then
-              echo "error: qortoo_rs_sha must be a full commit SHA" >&2
-              exit 1
-            fi
-            if [ "$REQUESTED_SHA" != "$sha" ]; then
-              echo "current=false" >> "$GITHUB_OUTPUT"
-              echo "Skipping superseded qortoo-rs commit $REQUESTED_SHA; main is $sha." >> "$GITHUB_STEP_SUMMARY"
-              exit 0
-            fi
-          fi
-          echo "current=true" >> "$GITHUB_OUTPUT"
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
-          echo "Resolved qortoo-rs/main to \`$sha\`." >> "$GITHUB_STEP_SUMMARY"
+          echo "Selected Rust commit \`$sha\` for all canary jobs." >> "$GITHUB_STEP_SUMMARY"
 
   test:
     name: canary (${{ matrix.os }})
     needs: resolve
-    if: needs.resolve.outputs.current == 'true'
     runs-on: ${{ matrix.os }}
     permissions:
       contents: read
@@ -147,23 +136,20 @@ jobs:
 
       - name: Prepare pin update
         id: pin
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          if git ls-remote --exit-code --heads origin "$UPDATE_BRANCH" >/dev/null 2>&1; then
+          pending_ref=
+          pending=$(git ls-remote --heads origin "$UPDATE_BRANCH")
+          if [ -n "$pending" ]; then
             git fetch origin "refs/heads/$UPDATE_BRANCH:refs/remotes/origin/$UPDATE_BRANCH"
+            pending_ref=$(git show "refs/remotes/origin/$UPDATE_BRANCH:.github/workflows/ci.yml" | sed -n 's/^  QORTOO_RS_REF: //p')
+            if ! printf '%s' "$pending_ref" | grep -Eq '^[0-9a-f]{40}$'; then
+              echo "error: invalid pending Rust pin" >&2
+              exit 1
+            fi
           fi
           git switch -C "$UPDATE_BRANCH" origin/main
-
-          # A newer upstream push may arrive while the matrix is running.
-          latest_ref=$(git ls-remote https://github.com/qortoo/qortoo-rs.git refs/heads/main | awk '{ print $1 }')
-          if ! printf '%s' "$latest_ref" | grep -Eq '^[0-9a-f]{40}$'; then
-            echo "error: could not resolve qortoo-rs/main before updating the pin" >&2
-            exit 1
-          fi
-          if [ "$latest_ref" != "$QORTOO_RS_REF" ]; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo "Skipping pin update: qortoo-rs/main advanced to $latest_ref." >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
 
           ci_file=.github/workflows/ci.yml
           matches=$(grep -c '^  QORTOO_RS_REF: ' "$ci_file")
@@ -179,10 +165,29 @@ jobs:
             exit 0
           fi
 
+          # Pin only tested Rust main history, without moving either existing pin backward.
+          comparisons=("$QORTOO_RS_REF...main" "$current_ref...$QORTOO_RS_REF")
+          if [ -n "$pending_ref" ]; then
+            comparisons+=("$pending_ref...$QORTOO_RS_REF")
+          fi
+          for comparison in "${comparisons[@]}"; do
+            status=$(gh api "repos/qortoo/qortoo-rs/compare/$comparison" --jq '.status')
+            case "$status" in
+              ahead|identical) ;;
+              *)
+                echo "changed=false" >> "$GITHUB_OUTPUT"
+                echo "Skipping pin update: $comparison is $status." >> "$GITHUB_STEP_SUMMARY"
+                exit 0
+                ;;
+            esac
+          done
+
           sed -i "s/^  QORTOO_RS_REF: .*/  QORTOO_RS_REF: $QORTOO_RS_REF/" "$ci_file"
-          echo "changed=true" >> "$GITHUB_OUTPUT"
-          echo "previous_ref=$current_ref" >> "$GITHUB_OUTPUT"
-          echo "short_ref=${QORTOO_RS_REF:0:12}" >> "$GITHUB_OUTPUT"
+          {
+            echo "changed=true"
+            echo "previous_ref=$current_ref"
+            echo "short_ref=${QORTOO_RS_REF:0:12}"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Push update branch
         if: steps.pin.outputs.changed == 'true'

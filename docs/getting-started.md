@@ -60,16 +60,26 @@ untested by this repository's own CI.
 
 ## Upstream Compatibility Checks
 
-Each push to `qortoo-rs/main` requests this repository's **Canary (qortoo-rs main)**
-workflow with the exact upstream commit SHA. It checks ABI compatibility and runs
-Go tests on Linux and macOS, then opens or updates the native SDK pin pull request
-only after both pass. Superseded commits are skipped, and a commit that is no longer
-upstream `main` after testing does not update the pin.
+After **Build and Test** succeeds for a push to `qortoo-rs/main`, the Rust
+repository requests **Canary (qortoo-rs main)** without a SHA. Failed, canceled,
+and PR builds do not request it. Changes excluded by the Rust build workflow's
+path filters also do not request a canary.
 
-To retry, run the Canary workflow on this repository's `main` branch. Leave
-`qortoo_rs_sha` empty to resolve current upstream `main`. The workflow has no daily
-schedule. Maintainers must enable this receiver on `qortoo-go/main` before enabling
-the caller in `qortoo-rs`.
+At startup, Canary resolves Rust `main` once. A manual `qortoo_rs_sha` input can
+select a full SHA instead; an empty input uses current main. The selected commit
+can be newer than the Rust build that requested the run. The canary independently
+builds the native SDK, checks ABI compatibility, and runs Go tests on Linux and
+macOS against that single fixed SHA.
+
+After both pass, the workflow proposes that exact SHA as the native SDK pin.
+It does not substitute a newer SHA after testing. A comparison with Rust main
+prevents pinning commits outside main's history, and comparisons with Go main's
+pin and the pending automation pin prevent backward updates. Documentation or
+code changes arriving during tests do not invalidate the completed check.
+
+To retry, run Canary on this repository's `main` branch, optionally setting
+`qortoo_rs_sha`. There is no daily schedule. The receiver accepts both requests
+without inputs and optional SHA requests, so it can be delivered before the caller.
 
 ## Create and Update a Counter
 
