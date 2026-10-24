@@ -7,10 +7,14 @@ core and the C ABI belong in `qortoo-rs`.
 
 ## Developer website checks
 
-The **Developer website** PR check builds this repository's guides and Go API
-reference from the PR's exact head commit, including fork heads. It calls the
+The **Developer website** PR check runs for documentation and API inputs and
+builds this repository's guides and Go API reference from the PR's exact head commit, including fork heads. It calls the
 shared [website workflow](https://github.com/qortoo/qortoo/blob/main/.github/workflows/build-docs.yml)
 with read-only permissions and no inherited secrets. Candidate builds do not deploy.
+
+PR validation and main refresh use the same [path filters](.github/workflows/developer-site.yml).
+Metadata-only and unrelated workflow changes skip these checks; mixed changes run.
+Manual main refresh remains available.
 
 For a local portal preview, place `qortoo` and `qortoo-rs` checkouts beside this
 repository and follow the website's
