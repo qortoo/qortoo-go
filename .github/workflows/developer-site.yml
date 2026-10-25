@@ -3,9 +3,19 @@ name: Developer website
 on:
   pull_request:
     branches: [main]
+    paths:
+      - 'README.md'
+      - 'docs/**'
+      - '**/*.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'examples/**'
+      - 'scripts/**'
+      - '.github/workflows/developer-site.yml'
   push:
     branches: [main]
     paths:
+      - 'README.md'
       - 'docs/**'
       - '**/*.go'
       - 'go.mod'
