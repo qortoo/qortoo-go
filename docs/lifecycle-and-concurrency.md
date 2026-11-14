@@ -88,6 +88,13 @@ automatic synchronization. `SetHandler` replaces the handler at the same priorit
 `UnsetHandler` removes it. Handler userdata is released exactly once when Rust drops the
 registration, including failed registration paths.
 
+## Error Reporting
+
+`*qortoo.Error` exposes a numeric `Code` and the original `Msg`. Its `Error()` output
+uses `qortoo: [E<code>] <message>`, preserving a matching identifier already supplied
+by the native SDK. Use `errors.Is(err, &qortoo.Error{Code: qortoo.ErrCodeNotWritable})`
+or inspect `Code` for decisions; message wording is informational.
+
 ## Context and Cancellation
 
 `SyncContext(ctx)` carries `ctx`'s trace span across the FFI boundary, so the Rust
