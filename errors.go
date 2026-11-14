@@ -5,9 +5,12 @@ package qortoo
 */
 import "C"
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
-// Error codes mirroring the #[repr(i32)] discriminants of the Rust error enums.
+// Stable error codes shared with the Qortoo C ABI.
 const (
 	// ClientError (100–)
 	ErrCodeInvalidCollectionName             int32 = 100
@@ -48,7 +51,14 @@ type Error struct {
 }
 
 func (e *Error) Error() string {
-	return fmt.Sprintf("qortoo: %s (code %d)", e.Msg, e.Code)
+	identifier := fmt.Sprintf("[E%d]", e.Code)
+	if strings.HasPrefix(e.Msg, identifier+" ") {
+		return "qortoo: " + e.Msg
+	}
+	if e.Msg == "" || e.Msg == identifier {
+		return "qortoo: " + identifier
+	}
+	return "qortoo: " + identifier + " " + e.Msg
 }
 
 // Is reports code-based equality so errors.Is(err, &Error{Code: ...}) works.
