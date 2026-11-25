@@ -104,7 +104,7 @@ func WithLocalConnectivity(conn *LocalConnectivity) ClientOption {
 }
 
 // NewClient builds a client. Without a connectivity option it uses the
-// SDK-default no-op backend.
+// SDK-default no-op backend. Call Open before creating or subscribing to datatypes.
 func NewClient(collection, alias string, opts ...ClientOption) (*Client, error) {
 	var cfg clientConfig
 	for _, opt := range opts {
@@ -125,9 +125,9 @@ func NewClient(collection, alias string, opts ...ClientOption) (*Client, error) 
 		if cfg.local.ptr == nil {
 			return nil, errors.New("qortoo: LocalConnectivity is closed")
 		}
-		ptr = C.qortoo_client_new(cCollection, cAlias, cfg.local.ptr, &cerr)
+		ptr = C.qortoo_client_build(cCollection, cAlias, cfg.local.ptr, &cerr)
 	} else {
-		ptr = C.qortoo_client_new(cCollection, cAlias, nil, &cerr)
+		ptr = C.qortoo_client_build(cCollection, cAlias, nil, &cerr)
 	}
 	if err := takeError(&cerr); err != nil {
 		return nil, err
@@ -135,6 +135,15 @@ func NewClient(collection, alias string, opts ...ClientOption) (*Client, error) 
 	cl := &Client{ptr: ptr}
 	cl.cleanup = runtime.AddCleanup(cl, freeClientPtr, ptr)
 	return cl, nil
+}
+
+// Open registers the client with its backend. A failed registration can be retried
+// on the same client. After success, repeated calls reuse the registration.
+func (c *Client) Open() error {
+	defer runtime.KeepAlive(c)
+	var cerr C.QortooError
+	C.qortoo_client_open(c.ptr, &cerr)
+	return takeError(&cerr)
 }
 
 // Collection returns the collection name of this client.

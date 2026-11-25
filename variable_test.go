@@ -25,6 +25,7 @@ func newVariable(t *testing.T, alias, key string) *Variable {
 	client, err := NewClient("go-binding-test", alias)
 	require.NoError(t, err)
 	t.Cleanup(client.Close)
+	require.NoError(t, client.Open())
 
 	variable, err := client.CreateVariable(key, nil)
 	require.NoError(t, err)
@@ -284,9 +285,11 @@ func TestVariableSyncBetweenTwoClients(t *testing.T) {
 	client1, err := NewClient("go-binding-test", "variable-sync-a", WithLocalConnectivity(conn))
 	require.NoError(t, err)
 	defer client1.Close()
+	require.NoError(t, client1.Open())
 	client2, err := NewClient("go-binding-test", "variable-sync-b", WithLocalConnectivity(conn))
 	require.NoError(t, err)
 	defer client2.Close()
+	require.NoError(t, client2.Open())
 
 	variable1, err := client1.SubscribeOrCreateVariable("shared-variable", nil)
 	require.NoError(t, err)

@@ -5,6 +5,14 @@ handle. Call `Close` deterministically; the runtime cleanup registered by each
 constructor is only a leak fallback and is not guaranteed to run, including at process
 exit.
 
+## Client registration
+
+`NewClient` creates a client identity. Call `client.Open()` to register it with the
+backend before creating or subscribing to a datatype. Datatype construction before
+registration returns `ErrCodeClientNotOpen`. If registration fails, retry `Open` on
+the same client to retain its identity. After success, repeated calls reuse the
+registration. Each client sharing a connectivity backend opens separately.
+
 ## Ownership and Close Order
 
 - A datatype keeps its owning `Client` reachable until the datatype is closed.

@@ -71,6 +71,7 @@ func TestContextAwareOperationsWithoutObservability(t *testing.T) {
 	client, err := NewClient("go-binding-obs", "ctx-ops", WithLocalConnectivity(conn))
 	require.NoError(t, err)
 	defer client.Close()
+	require.NoError(t, client.Open())
 
 	counter, err := client.CreateCounter("ctx-counter", nil)
 	require.NoError(t, err)
@@ -238,6 +239,7 @@ func exerciseJSONLogging(t *testing.T) {
 
 	client, err := NewClient("go-binding-observability", "json-log")
 	require.NoError(t, err)
+	require.NoError(t, client.Open())
 	counter, err := client.CreateCounter("json-log-counter", nil)
 	require.NoError(t, err)
 	_, err = counter.IncreaseBy(1)

@@ -20,6 +20,9 @@ func main() {
 		log.Fatal(err)
 	}
 	defer client.Close()
+	if err := client.Open(); err != nil {
+		log.Fatal(err)
+	}
 
 	counter, err := client.SubscribeOrCreateCounter("visits", nil)
 	if err != nil {

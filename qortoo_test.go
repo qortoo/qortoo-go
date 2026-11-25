@@ -42,6 +42,11 @@ func TestClientAndCounterLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	defer client.Close()
 
+	_, err = client.CreateCounter("before-open", nil)
+	require.ErrorIs(t, err, &Error{Code: ErrCodeClientNotOpen})
+	require.NoError(t, client.Open())
+	require.NoError(t, client.Open())
+
 	require.Equal(t, "go-binding-test", client.Collection())
 	require.Equal(t, "lifecycle", client.Alias())
 
@@ -73,6 +78,7 @@ func TestReadonlyCounterRejectsWrites(t *testing.T) {
 	client, err := NewClient("go-binding-test", "readonly")
 	require.NoError(t, err)
 	defer client.Close()
+	require.NoError(t, client.Open())
 
 	counter, err := client.CreateCounter("ro-counter", &DatatypeOptions{Readonly: true})
 	require.NoError(t, err)
@@ -90,9 +96,11 @@ func TestSyncBetweenTwoClients(t *testing.T) {
 	client1, err := NewClient("go-binding-test", "sync-a", WithLocalConnectivity(conn))
 	require.NoError(t, err)
 	defer client1.Close()
+	require.NoError(t, client1.Open())
 	client2, err := NewClient("go-binding-test", "sync-b", WithLocalConnectivity(conn))
 	require.NoError(t, err)
 	defer client2.Close()
+	require.NoError(t, client2.Open())
 
 	counter1, err := client1.CreateCounter("shared-counter", nil)
 	require.NoError(t, err)
@@ -119,6 +127,7 @@ func TestSubscribeOrCreateTracksSynchronizationVersions(t *testing.T) {
 	client, err := NewClient("go-binding-test", "subscribe-or-create", WithLocalConnectivity(conn))
 	require.NoError(t, err)
 	defer client.Close()
+	require.NoError(t, client.Open())
 
 	counter, err := client.SubscribeOrCreateCounter("subscribe-or-create-counter", nil)
 	require.NoError(t, err)
@@ -149,6 +158,7 @@ func TestCounterAndClientUnsubscribeLifecycle(t *testing.T) {
 	client, err := NewClient("go-binding-test", "unsubscribe", WithLocalConnectivity(conn))
 	require.NoError(t, err)
 	defer client.Close()
+	require.NoError(t, client.Open())
 
 	counterSide, err := client.CreateCounter("counter-side-unsubscribe", nil)
 	require.NoError(t, err)
@@ -176,6 +186,7 @@ func TestTransactionCommitAndRollback(t *testing.T) {
 	client, err := NewClient("go-binding-test", "transaction")
 	require.NoError(t, err)
 	defer client.Close()
+	require.NoError(t, client.Open())
 
 	counter, err := client.CreateCounter("tx-counter", nil)
 	require.NoError(t, err)
@@ -217,6 +228,7 @@ func TestTransactionContextRollsBack(t *testing.T) {
 	client, err := NewClient("go-binding-test", "context-rollback")
 	require.NoError(t, err)
 	defer client.Close()
+	require.NoError(t, client.Open())
 
 	counter, err := client.CreateCounter("context-rollback-counter", nil)
 	require.NoError(t, err)
@@ -241,6 +253,7 @@ func TestHandlerOnStateChange(t *testing.T) {
 	client, err := NewClient("go-binding-test", "handler", WithLocalConnectivity(conn))
 	require.NoError(t, err)
 	defer client.Close()
+	require.NoError(t, client.Open())
 
 	type transition struct{ oldState, newState DatatypeState }
 	changes := make(chan transition, 8)
@@ -272,6 +285,7 @@ func TestSetAndUnsetHandler(t *testing.T) {
 	client, err := NewClient("go-binding-test", "set-handler")
 	require.NoError(t, err)
 	defer client.Close()
+	require.NoError(t, client.Open())
 
 	counter, err := client.CreateCounter("set-handler-counter", nil)
 	require.NoError(t, err)
@@ -305,6 +319,7 @@ func TestHandlerCallbacksAllowNilAndContainPanics(t *testing.T) {
 	client, err := NewClient("go-binding-test", "handler-safety", WithLocalConnectivity(conn))
 	require.NoError(t, err)
 	defer client.Close()
+	require.NoError(t, client.Open())
 
 	counter, err := client.CreateCounter("handler-safety-counter", nil)
 	require.NoError(t, err)
@@ -337,6 +352,7 @@ func TestHandlerOnErrorCopiesCallbackMessage(t *testing.T) {
 	client, err := NewClient("go-binding-test", "handler-error", WithLocalConnectivity(conn))
 	require.NoError(t, err)
 	defer client.Close()
+	require.NoError(t, client.Open())
 
 	errors := make(chan Error, 1)
 	counter, err := client.CreateCounter("handler-error-counter", &DatatypeOptions{
