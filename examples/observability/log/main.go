@@ -57,6 +57,9 @@ func run() error {
 		return fmt.Errorf("create client: %w", err)
 	}
 	defer client.Close()
+	if err := client.Open(); err != nil {
+		return fmt.Errorf("open client: %w", err)
+	}
 
 	counter, err := client.CreateCounter("log-counter", nil)
 	if err != nil {

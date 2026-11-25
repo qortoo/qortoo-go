@@ -15,6 +15,8 @@ const (
 	// ClientError (100–)
 	ErrCodeInvalidCollectionName             int32 = 100
 	ErrCodeFailedToSubscribeOrCreateDatatype int32 = 101
+	ErrCodeFailedToOpenClient                int32 = 102
+	ErrCodeClientNotOpen                     int32 = 105
 
 	// DatatypeError (200–)
 	ErrCodeTransactionFailed            int32 = 201

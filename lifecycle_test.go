@@ -77,6 +77,7 @@ func TestCleanupFreesUnreferencedHandles(t *testing.T) {
 		conn := NewLocalConnectivity()
 		client, err := NewClient("go-lifecycle-test", "gc-all", WithLocalConnectivity(conn))
 		require.NoError(t, err)
+		require.NoError(t, client.Open())
 		counter, err := client.CreateCounter("gc-all-counter", nil)
 		require.NoError(t, err)
 		_, err = counter.IncreaseBy(1)
@@ -100,6 +101,7 @@ func TestCleanupReleasesHandlerUserdata(t *testing.T) {
 	func() {
 		client, err := NewClient("go-lifecycle-test", "gc-handler")
 		require.NoError(t, err)
+		require.NoError(t, client.Open())
 		counter, err := client.CreateCounter("gc-handler-counter", &DatatypeOptions{
 			Handler: &Handler{OnStateChange: func(oldState, newState DatatypeState) {}},
 		})
@@ -122,6 +124,7 @@ func TestCloseStopsCleanupAndIsIdempotent(t *testing.T) {
 	conn := NewLocalConnectivity()
 	client, err := NewClient("go-lifecycle-test", "close-all", WithLocalConnectivity(conn))
 	require.NoError(t, err)
+	require.NoError(t, client.Open())
 	counter, err := client.CreateCounter("close-all-counter", nil)
 	require.NoError(t, err)
 
@@ -147,6 +150,7 @@ func TestCounterKeepsClientReachable(t *testing.T) {
 	defer conn.Close()
 	client, err := NewClient("go-lifecycle-test", "reach", WithLocalConnectivity(conn))
 	require.NoError(t, err)
+	require.NoError(t, client.Open())
 	counter, err := client.CreateCounter("reach-counter", nil)
 	require.NoError(t, err)
 
@@ -173,6 +177,7 @@ func TestTransactionCounterRegistersNoCleanup(t *testing.T) {
 	client, err := NewClient("go-lifecycle-test", "tx")
 	require.NoError(t, err)
 	defer client.Close()
+	require.NoError(t, client.Open())
 	counter, err := client.CreateCounter("tx-counter", nil)
 	require.NoError(t, err)
 	defer counter.Close()
@@ -194,6 +199,7 @@ func TestVariableCleanupKeepsClientReachable(t *testing.T) {
 
 	client, err := NewClient("go-lifecycle-test", "variable-reach")
 	require.NoError(t, err)
+	require.NoError(t, client.Open())
 	variable, err := client.CreateVariable("reach-variable", nil)
 	require.NoError(t, err)
 
@@ -220,6 +226,7 @@ func TestTransactionVariableRegistersNoCleanup(t *testing.T) {
 	client, err := NewClient("go-lifecycle-test", "variable-tx")
 	require.NoError(t, err)
 	defer client.Close()
+	require.NoError(t, client.Open())
 	variable, err := client.CreateVariable("tx-variable", nil)
 	require.NoError(t, err)
 	defer variable.Close()
@@ -242,6 +249,7 @@ func TestTransactionVariableRegistersNoCleanup(t *testing.T) {
 func TestUseAfterCloseIsDefined(t *testing.T) {
 	client, err := NewClient("go-lifecycle-test", "closed")
 	require.NoError(t, err)
+	require.NoError(t, client.Open())
 	counter, err := client.CreateCounter("closed-counter", nil)
 	require.NoError(t, err)
 
@@ -272,6 +280,7 @@ func TestUseAfterCloseIsDefined(t *testing.T) {
 	require.Error(t, variable.Unsubscribe())
 
 	client.Close()
+	require.ErrorIs(t, client.Open(), &Error{Code: ErrCodeInvalidArgument})
 	require.Empty(t, client.Collection())
 	require.Empty(t, client.Alias())
 	require.Error(t, client.UnsubscribeDatatype("closed-counter"))
@@ -297,6 +306,7 @@ func TestHandlerUserdataReleasedOnFailure(t *testing.T) {
 	client2, err := NewClient("go-lifecycle-test", "fail-late")
 	require.NoError(t, err)
 	defer client2.Close()
+	require.NoError(t, client2.Open())
 	first, err := client2.CreateCounter("fail-late-counter", nil)
 	require.NoError(t, err)
 	defer first.Close()

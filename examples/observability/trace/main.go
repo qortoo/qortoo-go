@@ -102,6 +102,9 @@ func runCounterSync(ctx context.Context) error {
 		return fmt.Errorf("create client-a: %w", err)
 	}
 	defer clientA.Close()
+	if err := clientA.Open(); err != nil {
+		return fmt.Errorf("open client-a: %w", err)
+	}
 
 	clientB, err := qortoo.NewClient(
 		"example-trace",
@@ -112,6 +115,9 @@ func runCounterSync(ctx context.Context) error {
 		return fmt.Errorf("create client-b: %w", err)
 	}
 	defer clientB.Close()
+	if err := clientB.Open(); err != nil {
+		return fmt.Errorf("open client-b: %w", err)
+	}
 
 	counterA, err := clientA.CreateCounter("shared-counter", nil)
 	if err != nil {

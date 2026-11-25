@@ -99,6 +99,9 @@ func main() {
         log.Fatal(err)
     }
     defer client.Close()
+    if err := client.Open(); err != nil {
+        log.Fatal(err)
+    }
 
     counter, err := client.SubscribeOrCreateCounter("visits", nil)
     if err != nil {
@@ -181,6 +184,9 @@ if err != nil {
     log.Fatal(err)
 }
 defer first.Close()
+if err := first.Open(); err != nil {
+    log.Fatal(err)
+}
 ```
 
 See [Lifecycle and Concurrency](lifecycle-and-concurrency.md) before using native

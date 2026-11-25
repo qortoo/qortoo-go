@@ -25,6 +25,9 @@ func main() {
 		log.Fatal(err)
 	}
 	defer client.Close()
+	if err := client.Open(); err != nil {
+		log.Fatal(err)
+	}
 
 	variable, err := client.SubscribeOrCreateVariable("profile", nil)
 	if err != nil {
